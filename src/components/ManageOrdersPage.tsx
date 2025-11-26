@@ -17,10 +17,10 @@ import { motion } from "motion/react";
 import { Separator } from "./ui/separator";
 
 interface ManageOrdersPageProps {
-  orders?: Order[];
+  orders: Order[];
 }
 
-export function ManageOrdersPage({ orders = [] }: ManageOrdersPageProps) {
+export function ManageOrdersPage({ orders }: ManageOrdersPageProps) {
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
