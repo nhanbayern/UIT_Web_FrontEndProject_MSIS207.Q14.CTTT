@@ -1,0 +1,324 @@
+import { Product } from "../types";
+
+// Cấu hình API base URL. For local dev we prefer relative paths so Vite proxy
+// can forward requests and cookies behave same-site. Set VITE_API_BASE_URL in
+// production builds to a full origin if needed.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
+// Access token in-memory management (AppContext sẽ set/clear)
+let accessToken: string | null = null;
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+}
+export function clearAccessToken() {
+  accessToken = null;
+}
+export function getAccessToken() {
+  return accessToken;
+}
+
+// Single-flight refresh helper. If a refresh is already in progress, callers
+// will await the same promise instead of triggering parallel refreshes which
+// can cause rotation/revocation races on the backend.
+let refreshPromise: Promise<any> | null = null;
+async function doRefresh() {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    const refRes = await fetch(`${API_BASE_URL}/RuouOngTu/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!refRes.ok) {
+      throw refRes;
+    }
+    const json = await refRes.json();
+    if (json.accessToken) setAccessToken(json.accessToken);
+    refreshPromise = null;
+    return json;
+  })();
+  try {
+    return await refreshPromise;
+  } catch (e) {
+    refreshPromise = null;
+    throw e;
+  }
+}
+
+async function apiFetch(path: string, init: RequestInit = {}) {
+  const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
+  const headers = new Headers(init.headers || {});
+  if (!headers.has("Content-Type"))
+    headers.set("Content-Type", "application/json");
+  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  const options: RequestInit = { ...init, headers, credentials: "include" };
+
+  let res = await fetch(url, options);
+  if (res.status === 401) {
+    // attempt a single refresh and retry once
+    try {
+      const refJson = await doRefresh();
+      if (refJson && refJson.accessToken) {
+        headers.set("Authorization", `Bearer ${refJson.accessToken}`);
+        res = await fetch(url, { ...options, headers });
+        return res;
+      }
+    } catch (e) {
+      // refresh failed; return original 401 or the refresh error
+      if (e instanceof Response) return e;
+      throw e;
+    }
+  }
+  return res;
+}
+
+/* Auth helpers */
+export async function login(email: string, password: string) {
+  const res = await fetch(`${API_BASE_URL}/RuouOngTu/customer/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+export async function refresh() {
+  console.log(
+    "[API DEBUG] Making refresh request to:",
+    `${API_BASE_URL}/RuouOngTu/auth/refresh`
+  );
+  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/refresh`, {
+    method: "POST",
+    credentials: "include",
+  });
+  console.log("[API DEBUG] Refresh response status:", res.status);
+  if (!res.ok) {
+    console.log("[API DEBUG] Refresh failed with status:", res.status);
+    throw res;
+  }
+  const json = await res.json();
+  console.log("[API DEBUG] Refresh response body:", json);
+  return json;
+}
+
+export async function logout() {
+  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!res.ok) throw res;
+  return res.json();
+}
+
+// Return the Google OAuth start URL on the backend
+export function getGoogleAuthUrl() {
+  return `${API_BASE_URL}/RuouOngTu/auth/google`;
+}
+
+/* Registration / OTP */
+export async function checkEmail(email: string) {
+  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/check-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw json;
+  return json;
+}
+
+export async function verifyOtp(
+  email: string,
+  otp: string,
+  username?: string,
+  password?: string,
+  phone?: string
+) {
+  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email, otp, username, password, phone }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw json;
+  return json;
+}
+
+export async function resendOtp(email: string) {
+  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/resend-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw json;
+  return json;
+}
+
+/* Forgot password flow */
+export async function forgotCheckEmail(email: string) {
+  const res = await fetch(
+    `${API_BASE_URL}/RuouOngTu/auth/forgot-password/check-email`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email }),
+    }
+  );
+  const json = await res.json();
+  if (!res.ok) throw json;
+  return json;
+}
+
+export async function forgotVerifyOtp(email: string, otp: string) {
+  const res = await fetch(
+    `${API_BASE_URL}/RuouOngTu/auth/forgot-password/verify-otp`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, otp }),
+    }
+  );
+  const json = await res.json();
+  if (!res.ok) throw json;
+  return json;
+}
+
+export async function resetPassword(email: string, new_password: string) {
+  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email, new_password }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw json;
+  return json;
+}
+
+export async function getProfile() {
+  const response = await apiFetch("/RuouOngTu/customer/profile");
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/* User addresses */
+export async function getAddresses() {
+  const response = await apiFetch("/RuouOngTu/user/address");
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+export async function createAddress(payload: {
+  address_line: string;
+  ward?: string;
+  district?: string;
+  province?: string;
+  is_default?: number;
+}) {
+  const response = await apiFetch("/RuouOngTu/user/address/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw await response.json();
+  return response.json();
+}
+
+export async function deleteAddress(address_id: number) {
+  const response = await apiFetch(`/RuouOngTu/user/address/${address_id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw await response.json();
+  return response.json();
+}
+
+export async function updateAddress(address_id: number, payload: any) {
+  const response = await apiFetch(
+    `/RuouOngTu/user/address/update/${address_id}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }
+  );
+  if (!response.ok) throw await response.json();
+  return response.json();
+}
+
+/* Products */
+export interface FetchProductsOptions {
+  page?: number;
+  limit?: number;
+  region?: string;
+  category?: string;
+  q?: string;
+}
+
+/**
+ * Fetch products (paginated). Returns the raw paginated response from backend:
+ * { page, limit, totalItems, totalPages, products: [...] }
+ */
+export async function fetchProducts(
+  opts: FetchProductsOptions = { page: 1, limit: 10 }
+): Promise<any> {
+  const params = new URLSearchParams();
+  if (opts.page) params.append("page", String(opts.page));
+  if (opts.limit) params.append("limit", String(opts.limit));
+  if (opts.region) params.append("region", opts.region);
+  if (opts.category) params.append("category", opts.category);
+  if (opts.q) params.append("q", opts.q);
+
+  const url =
+    "/RuouOngTu/products" + (params.toString() ? `?${params.toString()}` : "");
+
+  const response = await apiFetch(url);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+export async function fetchProductById(id: string): Promise<Product> {
+  const response = await apiFetch(`/RuouOngTu/products/${id}`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+export async function fetchProductsByRegion(
+  region: string
+): Promise<Product[]> {
+  const response = await apiFetch(
+    `/RuouOngTu/products?region=${encodeURIComponent(region)}`
+  );
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/**
+ * Correct region endpoint that returns a plain array (no pagination).
+ * Use this when requesting products for a specific region: GET /products/region/{regionName}
+ */
+export async function fetchProductsByRegionCorrect(
+  region: string
+): Promise<Product[]> {
+  const response = await apiFetch(
+    `/RuouOngTu/products/region/${encodeURIComponent(region)}`
+  );
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+export async function fetchProductsByCategory(
+  category: string
+): Promise<Product[]> {
+  const response = await apiFetch(
+    `/RuouOngTu/products?category=${encodeURIComponent(category)}`
+  );
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}

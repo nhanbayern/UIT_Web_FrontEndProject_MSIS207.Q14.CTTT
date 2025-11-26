@@ -1,0 +1,11 @@
+/* Navbar transparent mode chỉ dùng cho Product Detail */
+.navbar-transparent {
+  background: transparent !important;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.navbar-default {
+  background: #dc2626; /* bg-red-500 */
+}
