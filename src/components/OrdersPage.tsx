@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -21,9 +23,15 @@ import { getCartItems } from "../services/cart.service";
 import { CartItem } from "../types/cart.types";
 import { useApp } from "../contexts/AppContext";
 
-const BACKEND_URL = "http://localhost:3000";
+const RAW_IMAGE_BASE =
+  (
+    ((import.meta as any).env?.VITE_API_IMG_URL as string) ||
+    "http://localhost:3000"
+  ).trim() || "http://localhost:3000";
+const IMAGE_BASE_URL = RAW_IMAGE_BASE.replace(/\/$/, "");
 
 export function OrdersPage() {
+  const navigate = useNavigate();
   const { authChecked, isLoggedIn } = useApp();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,8 +56,8 @@ export function OrdersPage() {
         const response = await getCartItems();
         console.log("[OrdersPage] Cart items loaded:", response);
         console.log(
-          "[OrdersPage] First item imageUrl:",
-          response.items?.[0]?.imageUrl
+          "[OrdersPage] First item image:",
+          response.items?.[0]?.image
         );
         setCartItems(response.items || []);
         setError(null);
@@ -77,13 +85,30 @@ export function OrdersPage() {
       console.log("[OrdersPage] imageUrl is empty, returning empty string");
       return "";
     }
+
     if (imageUrl.startsWith("http")) {
-      console.log("[OrdersPage] imageUrl has http, returning as is:", imageUrl);
-      return imageUrl;
+      const sanitized = imageUrl.replace(/\/RuouOngTu(?=\/uploads)/, "");
+      console.log("[OrdersPage] absolute image, sanitized:", sanitized);
+      return sanitized;
     }
-    const fullUrl = `${BACKEND_URL}${imageUrl}`;
-    console.log("[OrdersPage] imageUrl is relative, returning:", fullUrl);
-    return fullUrl;
+
+    let normalized = imageUrl.trim();
+    if (/^\/?RuouOngTu\//.test(normalized)) {
+      normalized = normalized.replace(/^\/?RuouOngTu/, "");
+    }
+    if (!normalized.startsWith("/")) {
+      normalized = `/${normalized}`;
+    }
+
+    if (normalized.startsWith("/uploads")) {
+      const fullUrl = `${IMAGE_BASE_URL}${normalized}`;
+      console.log("[OrdersPage] normalized upload path:", fullUrl);
+      return fullUrl;
+    }
+
+    const fallback = `${IMAGE_BASE_URL}${normalized}`;
+    console.log("[OrdersPage] fallback path used:", fallback);
+    return fallback;
   };
 
   const totalPrice = cartItems.reduce(
@@ -110,7 +135,13 @@ export function OrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div
+      className="min-h-screen bg-white"
+      style={{
+        fontFamily:
+          '"Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
       {/* Hero Section */}
       <section className="relative hero-bleed">
         <div className="relative w-full h-64 md:h-96 overflow-hidden">
@@ -125,7 +156,7 @@ export function OrdersPage() {
 
       <div className="container mx-auto px-6 mt-16 md:mt-28 py-12">
         <div className="mb-8">
-          <h1 className="text-4xl text-primary mb-2">
+          <h1 className="text-4xl font-bold text-primary mb-2">
             Sản Phẩm Cần Thanh Toán
           </h1>
           <p className="text-muted-foreground">
@@ -237,6 +268,18 @@ export function OrdersPage() {
                       {formatPrice(totalPrice)}
                     </span>
                   </div>
+
+                  <Separator />
+
+                  {/* Checkout Button */}
+                  <Button
+                    onClick={() => navigate("/checkout")}
+                    className="w-full bg-primary hover:bg-primary/90 text-white py-6 text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
+                    size="lg"
+                  >
+                    <CreditCard className="mr-2 h-5 w-5" />
+                    Tiến Hành Thanh Toán
+                  </Button>
                 </CardContent>
               </Card>
             </motion.div>

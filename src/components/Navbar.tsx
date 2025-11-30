@@ -196,9 +196,9 @@ export function Navbar({
 
                     {isLoggedIn && (
                       <Link
-                        to="/orders"
+                        to="/manageorders"
                         className={`px-4 py-3 text-base font-medium transition-colors border-t border-white/10 mt-1 ${
-                          location.pathname === "/orders"
+                          location.pathname === "/manageorders"
                             ? "bg-white/10 text-secondary"
                             : "text-white/85 hover:bg-white/5 hover:text-white"
                         }`}
@@ -348,9 +348,9 @@ export function Navbar({
                   {isLoggedIn && (
                     <NavigationMenuItem>
                       <Link
-                        to="/orders"
+                        to="/manageorders"
                         className={`px-4 py-2 nav-item text-base md:text-lg font-medium transition-colors ${
-                          location.pathname === "/orders"
+                          location.pathname === "/manageorders"
                             ? "text-secondary"
                             : "text-white hover:text-secondary"
                         }`}

@@ -19,10 +19,16 @@ import { toast } from "sonner";
 import { useApp } from "../contexts/AppContext";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { getCartItems } from "../services/cart.service";
+import { createOrder } from "../services/api";
 import { CartItem } from "../types/cart.types";
 import heroTaVan from "../assets/herotavan.jpg";
 
-const BACKEND_URL = "http://localhost:3000";
+const RAW_IMAGE_BASE =
+  (
+    ((import.meta as any).env?.VITE_API_IMG_URL as string) ||
+    "http://localhost:3000"
+  ).trim() || "http://localhost:3000";
+const IMAGE_BASE_URL = RAW_IMAGE_BASE.replace(/\/$/, "");
 
 export function CheckoutPage() {
   const navigate = useNavigate();
@@ -77,8 +83,20 @@ export function CheckoutPage() {
 
   const getImageUrl = (imageUrl: string) => {
     if (!imageUrl) return "";
-    if (imageUrl.startsWith("http")) return imageUrl;
-    return `${BACKEND_URL}${imageUrl}`;
+    if (imageUrl.startsWith("http")) {
+      return imageUrl.replace(/\/RuouOngTu(?=\/uploads)/, "");
+    }
+    let normalized = imageUrl.trim();
+    if (/^\/?RuouOngTu\//.test(normalized)) {
+      normalized = normalized.replace(/^\/?RuouOngTu/, "");
+    }
+    if (!normalized.startsWith("/")) {
+      normalized = `/${normalized}`;
+    }
+    if (normalized.startsWith("/uploads")) {
+      return `${IMAGE_BASE_URL}${normalized}`;
+    }
+    return `${IMAGE_BASE_URL}${normalized}`;
   };
 
   const subtotal = cartItems.reduce(
@@ -88,7 +106,7 @@ export function CheckoutPage() {
   const shipping = 50000;
   const total = subtotal + shipping;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
@@ -117,15 +135,47 @@ export function CheckoutPage() {
       return;
     }
 
-    if (paymentMethod === "ewallet") {
-      toast.info("Đang chuyển đến cổng thanh toán...");
+    try {
+      // Prepare order payload
+      const items = cartItems.map((item) => ({
+        product_id: item.productId,
+        quantity: item.quantity,
+      }));
+
+      const payload = {
+        items,
+        shipping_address_id: 1, // TODO: Get actual address ID from user_address table
+        payment_method: paymentMethod === "cash" ? "Cash" : "OnlineBanking",
+      };
+
+      // Call createOrder API
+      const result = await createOrder(payload);
+      console.log("[CheckoutPage] Order created:", result);
+
+      toast.success(`Đặt hàng thành công! Mã đơn: ${result.order_code}`);
+
+      // Clear cart and navigate to orders
       setTimeout(() => {
-        toast.success("Thanh toán thành công!");
-        navigate("/orders");
+        navigate("/manageorders");
       }, 1500);
-    } else {
-      toast.success("Đặt hàng thành công!");
-      navigate("/orders");
+    } catch (error: any) {
+      console.error("[CheckoutPage] Order creation failed:", error);
+
+      // Handle specific error codes
+      const errorCode = error?.error;
+      const errorMessage = error?.message || "Không thể tạo đơn hàng";
+
+      if (errorCode === "INSUFFICIENT_QUANTITY") {
+        toast.error(
+          `Không đủ hàng: ${error.product_name} (Chỉ còn ${error.available})`
+        );
+      } else if (errorCode === "PRODUCT_NOT_FOUND") {
+        toast.error(`Sản phẩm không tồn tại`);
+      } else if (errorCode === "INVALID_ADDRESS") {
+        toast.error(`Địa chỉ không hợp lệ`);
+      } else {
+        toast.error(errorMessage);
+      }
     }
   };
 

@@ -36,6 +36,7 @@ function AppRoutes() {
         <Route element={<Layout />}>
           <Route path="/product/:id" element={<ProductDetailPage />} />
           <Route path="/" element={<HomePage />} />
+          <Route path="/homepage" element={<HomePage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/products/all" element={<AllProductsPage />} />
           <Route path="/north" element={<NorthPage />} />

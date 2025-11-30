@@ -3,7 +3,7 @@ import { Product } from "../types";
 // Cấu hình API base URL. For local dev we prefer relative paths so Vite proxy
 // can forward requests and cookies behave same-site. Set VITE_API_BASE_URL in
 // production builds to a full origin if needed.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL ?? "";
 
 // Access token in-memory management (AppContext sẽ set/clear)
 let accessToken: string | null = null;
@@ -24,7 +24,7 @@ let refreshPromise: Promise<any> | null = null;
 async function doRefresh() {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
-    const refRes = await fetch(`${API_BASE_URL}/RuouOngTu/auth/refresh`, {
+    const refRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
       credentials: "include",
     });
@@ -73,7 +73,7 @@ async function apiFetch(path: string, init: RequestInit = {}) {
 
 /* Auth helpers */
 export async function login(email: string, password: string) {
-  const res = await fetch(`${API_BASE_URL}/RuouOngTu/customer/login`, {
+  const res = await fetch(`${API_BASE_URL}/customer/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -86,9 +86,9 @@ export async function login(email: string, password: string) {
 export async function refresh() {
   console.log(
     "[API DEBUG] Making refresh request to:",
-    `${API_BASE_URL}/RuouOngTu/auth/refresh`
+    `${API_BASE_URL}/auth/refresh`
   );
-  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/refresh`, {
+  const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: "POST",
     credentials: "include",
   });
@@ -103,7 +103,7 @@ export async function refresh() {
 }
 
 export async function logout() {
-  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/logout`, {
+  const res = await fetch(`${API_BASE_URL}/auth/logout`, {
     method: "POST",
     credentials: "include",
   });
@@ -113,12 +113,12 @@ export async function logout() {
 
 // Return the Google OAuth start URL on the backend
 export function getGoogleAuthUrl() {
-  return `${API_BASE_URL}/RuouOngTu/auth/google`;
+  return `${API_BASE_URL}/customer/google`;
 }
 
 /* Registration / OTP */
 export async function checkEmail(email: string) {
-  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/check-email`, {
+  const res = await fetch(`${API_BASE_URL}/auth/check-email`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -136,7 +136,7 @@ export async function verifyOtp(
   password?: string,
   phone?: string
 ) {
-  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/verify-otp`, {
+  const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -148,7 +148,7 @@ export async function verifyOtp(
 }
 
 export async function resendOtp(email: string) {
-  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/resend-otp`, {
+  const res = await fetch(`${API_BASE_URL}/auth/resend-otp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -161,37 +161,31 @@ export async function resendOtp(email: string) {
 
 /* Forgot password flow */
 export async function forgotCheckEmail(email: string) {
-  const res = await fetch(
-    `${API_BASE_URL}/RuouOngTu/auth/forgot-password/check-email`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email }),
-    }
-  );
+  const res = await fetch(`${API_BASE_URL}/auth/forgot-password/check-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+  });
   const json = await res.json();
   if (!res.ok) throw json;
   return json;
 }
 
 export async function forgotVerifyOtp(email: string, otp: string) {
-  const res = await fetch(
-    `${API_BASE_URL}/RuouOngTu/auth/forgot-password/verify-otp`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, otp }),
-    }
-  );
+  const res = await fetch(`${API_BASE_URL}/auth/forgot-password/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email, otp }),
+  });
   const json = await res.json();
   if (!res.ok) throw json;
   return json;
 }
 
 export async function resetPassword(email: string, new_password: string) {
-  const res = await fetch(`${API_BASE_URL}/RuouOngTu/auth/reset-password`, {
+  const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -203,14 +197,14 @@ export async function resetPassword(email: string, new_password: string) {
 }
 
 export async function getProfile() {
-  const response = await apiFetch("/RuouOngTu/customer/profile");
+  const response = await apiFetch("/customer/profile");
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
 
 /* User addresses */
 export async function getAddresses() {
-  const response = await apiFetch("/RuouOngTu/user/address");
+  const response = await apiFetch("/user/address");
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
@@ -222,7 +216,7 @@ export async function createAddress(payload: {
   province?: string;
   is_default?: number;
 }) {
-  const response = await apiFetch("/RuouOngTu/user/address/create", {
+  const response = await apiFetch("/user/address/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -232,7 +226,7 @@ export async function createAddress(payload: {
 }
 
 export async function deleteAddress(address_id: number) {
-  const response = await apiFetch(`/RuouOngTu/user/address/${address_id}`, {
+  const response = await apiFetch(`/user/address/${address_id}`, {
     method: "DELETE",
   });
   if (!response.ok) throw await response.json();
@@ -240,14 +234,11 @@ export async function deleteAddress(address_id: number) {
 }
 
 export async function updateAddress(address_id: number, payload: any) {
-  const response = await apiFetch(
-    `/RuouOngTu/user/address/update/${address_id}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }
-  );
+  const response = await apiFetch(`/user/address/update/${address_id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
   if (!response.ok) throw await response.json();
   return response.json();
 }
@@ -275,8 +266,7 @@ export async function fetchProducts(
   if (opts.category) params.append("category", opts.category);
   if (opts.q) params.append("q", opts.q);
 
-  const url =
-    "/RuouOngTu/products" + (params.toString() ? `?${params.toString()}` : "");
+  const url = "/products" + (params.toString() ? `?${params.toString()}` : "");
 
   const response = await apiFetch(url);
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -284,7 +274,7 @@ export async function fetchProducts(
 }
 
 export async function fetchProductById(id: string): Promise<Product> {
-  const response = await apiFetch(`/RuouOngTu/products/${id}`);
+  const response = await apiFetch(`/products/${id}`);
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
@@ -293,7 +283,7 @@ export async function fetchProductsByRegion(
   region: string
 ): Promise<Product[]> {
   const response = await apiFetch(
-    `/RuouOngTu/products?region=${encodeURIComponent(region)}`
+    `/products?region=${encodeURIComponent(region)}`
   );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
@@ -307,7 +297,7 @@ export async function fetchProductsByRegionCorrect(
   region: string
 ): Promise<Product[]> {
   const response = await apiFetch(
-    `/RuouOngTu/products/region/${encodeURIComponent(region)}`
+    `/products/region/${encodeURIComponent(region)}`
   );
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
@@ -317,8 +307,66 @@ export async function fetchProductsByCategory(
   category: string
 ): Promise<Product[]> {
   const response = await apiFetch(
-    `/RuouOngTu/products?category=${encodeURIComponent(category)}`
+    `/products?category=${encodeURIComponent(category)}`
   );
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+/* Orders */
+export interface CreateOrderPayload {
+  items: Array<{ product_id: string; quantity: number }>;
+  shipping_address_id: number;
+  payment_method: "Cash" | "OnlineBanking";
+}
+
+export async function createOrder(payload: CreateOrderPayload) {
+  const response = await apiFetch("/orders/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw error;
+  }
+  return response.json();
+}
+
+export async function getOrders() {
+  const response = await apiFetch("/orders");
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+export async function getOrderDetail(order_id: number) {
+  const response = await apiFetch(`/orders/${order_id}`);
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+export async function updateOrderStatus(
+  order_id: number,
+  order_status: "Preparing" | "On delivery" | "Delivered"
+) {
+  const response = await apiFetch(`/orders/${order_id}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ order_status }),
+  });
+  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+  return response.json();
+}
+
+export async function updatePaymentStatus(
+  order_id: number,
+  payment_status: "Unpaid" | "Paid"
+) {
+  const response = await apiFetch(`/orders/${order_id}/payment-status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ payment_status }),
+  });
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }

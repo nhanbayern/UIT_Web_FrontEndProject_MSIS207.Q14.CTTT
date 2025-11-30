@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import {
@@ -17,8 +17,9 @@ import { useApp } from "../contexts/AppContext";
 import * as api from "../services/api";
 
 export function SignInPage() {
-  const { signIn, setAuthFromLogin } = useApp();
+  const { signIn, setAuthFromLogin, isLoggedIn, authChecked } = useApp();
   const navigate = useNavigate();
+  const redirectedRef = useRef(false);
 
   const [signInData, setSignInData] = useState({
     email: "",
@@ -33,6 +34,15 @@ export function SignInPage() {
     confirmPassword: "",
   });
   const [signUpSubmitting, setSignUpSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!authChecked || !isLoggedIn || redirectedRef.current) return;
+    redirectedRef.current = true;
+    toast.success("Chào mừng bạn đã đến với Rượu Ông Tư!", {
+      duration: 2000,
+    });
+    navigate("/homepage", { replace: true });
+  }, [authChecked, isLoggedIn, navigate]);
 
   const handleSignIn = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,13 +95,16 @@ export function SignInPage() {
   };
 
   const handleGoogleSignIn = () => {
-    const url = api.getGoogleAuthUrl();
+    const rawUrl = api.getGoogleAuthUrl();
+    const resolvedUrl = rawUrl.startsWith("http")
+      ? rawUrl
+      : `${window.location.origin}${rawUrl}`;
     const width = 600;
     const height = 700;
     const left = window.screenX + (window.innerWidth - width) / 2;
     const top = window.screenY + (window.innerHeight - height) / 2;
     const popup = window.open(
-      url,
+      resolvedUrl,
       "google_oauth",
       `width=${width},height=${height},left=${left},top=${top}`
     );
@@ -104,7 +117,7 @@ export function SignInPage() {
 
     toast.info("Mở cửa sổ Google để đăng nhập...");
 
-    const expectedOrigin = new URL(api.getGoogleAuthUrl()).origin;
+    const expectedOrigin = new URL(resolvedUrl).origin;
 
     const handleMessage = (e: MessageEvent) => {
       // Only accept messages from backend origin
