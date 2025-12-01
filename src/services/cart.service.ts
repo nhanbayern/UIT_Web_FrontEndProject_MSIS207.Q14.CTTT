@@ -10,8 +10,6 @@ import {
 } from "../types/cart.types";
 import * as api from "./api";
 
-const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL ?? "";
-
 /**
  * Generic fetch wrapper with auth token and automatic retry with refresh
  */
@@ -27,7 +25,8 @@ async function apiFetch<T>(
     "[CartService] Access token from api service:",
     token ? "exists" : "null"
   );
-  console.log("[CartService] Request URL:", `${API_BASE_URL}${endpoint}`);
+  const requestUrl = api.buildApiUrl(endpoint);
+  console.log("[CartService] Request URL:", requestUrl);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -39,7 +38,7 @@ async function apiFetch<T>(
   }
 
   // First attempt
-  let response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  let response = await fetch(requestUrl, {
     ...options,
     headers,
     credentials: "include", // Important: send cookies for refresh token
@@ -64,7 +63,7 @@ async function apiFetch<T>(
         // Retry the request with new token
         headers["Authorization"] = `Bearer ${token}`;
 
-        response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        response = await fetch(requestUrl, {
           ...options,
           headers,
           credentials: "include",

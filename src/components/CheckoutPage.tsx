@@ -30,12 +30,10 @@ import type { CreateOrderPayload } from "../services/api";
 import { CartItem } from "../types/cart.types";
 import heroTaVan from "../assets/herotavan.jpg";
 
-const RAW_IMAGE_BASE =
-  (
-    ((import.meta as any).env?.VITE_API_IMG_URL as string) ||
-    "http://localhost:3000"
-  ).trim() || "http://localhost:3000";
-const IMAGE_BASE_URL = RAW_IMAGE_BASE.replace(/\/$/, "");
+const RAW_IMAGE_BASE = (
+  ((import.meta as any).env?.VITE_API_IMG_URL as string) || ""
+).trim();
+const IMAGE_CDN_BASE = RAW_IMAGE_BASE.replace(/\/$/, "");
 
 interface UserAddress {
   address_id: number;
@@ -187,9 +185,9 @@ export function CheckoutPage() {
       normalized = `/${normalized}`;
     }
     if (normalized.startsWith("/uploads")) {
-      return `${IMAGE_BASE_URL}${normalized}`;
+      return `${IMAGE_CDN_BASE}${normalized}`;
     }
-    return `${IMAGE_BASE_URL}${normalized}`;
+    return `${IMAGE_CDN_BASE}${normalized}`;
   };
 
   const subtotal = cartItems.reduce(

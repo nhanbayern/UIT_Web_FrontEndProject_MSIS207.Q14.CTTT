@@ -1,9 +1,26 @@
 import { Product } from "../types";
 
-// Cấu hình API base URL. For local dev we prefer relative paths so Vite proxy
-// can forward requests and cookies behave same-site. Set VITE_API_BASE_URL in
-// production builds to a full origin if needed.
-const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL ?? "";
+const RAW_API_BASE = (
+  ((import.meta as any).env?.VITE_API_BASE_URL as string) || ""
+).trim();
+export const API_BASE_URL = RAW_API_BASE.replace(/\/$/, "");
+
+export function buildApiUrl(path: string): string {
+  if (!path) return API_BASE_URL;
+  if (path.startsWith("http")) return path;
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE_URL}${normalized}`;
+}
+
+export function getBackendOrigin(): string | null {
+  if (!API_BASE_URL || !API_BASE_URL.startsWith("http")) return null;
+  try {
+    return new URL(API_BASE_URL).origin;
+  } catch (err) {
+    console.warn("[api] Failed to parse backend origin", err);
+    return null;
+  }
+}
 
 // Access token in-memory management (AppContext sẽ set/clear)
 let accessToken: string | null = null;
@@ -45,7 +62,7 @@ async function doRefresh() {
 }
 
 async function apiFetch(path: string, init: RequestInit = {}) {
-  const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
+  const url = buildApiUrl(path);
   const headers = new Headers(init.headers || {});
   if (!headers.has("Content-Type"))
     headers.set("Content-Type", "application/json");

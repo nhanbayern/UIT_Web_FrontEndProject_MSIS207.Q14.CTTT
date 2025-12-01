@@ -23,12 +23,10 @@ import { getCartItems } from "../services/cart.service";
 import { CartItem } from "../types/cart.types";
 import { useApp } from "../contexts/AppContext";
 
-const RAW_IMAGE_BASE =
-  (
-    ((import.meta as any).env?.VITE_API_IMG_URL as string) ||
-    "http://localhost:3000"
-  ).trim() || "http://localhost:3000";
-const IMAGE_BASE_URL = RAW_IMAGE_BASE.replace(/\/$/, "");
+const RAW_IMAGE_BASE = (
+  ((import.meta as any).env?.VITE_API_IMG_URL as string) || ""
+).trim();
+const IMAGE_CDN_BASE = RAW_IMAGE_BASE.replace(/\/$/, "");
 
 export function OrdersPage() {
   const navigate = useNavigate();
@@ -101,12 +99,12 @@ export function OrdersPage() {
     }
 
     if (normalized.startsWith("/uploads")) {
-      const fullUrl = `${IMAGE_BASE_URL}${normalized}`;
+      const fullUrl = `${IMAGE_CDN_BASE}${normalized}`;
       console.log("[OrdersPage] normalized upload path:", fullUrl);
       return fullUrl;
     }
 
-    const fallback = `${IMAGE_BASE_URL}${normalized}`;
+    const fallback = `${IMAGE_CDN_BASE}${normalized}`;
     console.log("[OrdersPage] fallback path used:", fallback);
     return fallback;
   };

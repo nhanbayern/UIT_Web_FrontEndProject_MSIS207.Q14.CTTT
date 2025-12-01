@@ -118,18 +118,47 @@ export function SignInPage() {
     toast.info("Mở cửa sổ Google để đăng nhập...");
 
     const expectedOrigin = new URL(resolvedUrl).origin;
+    const allowedOrigins = new Set<string>([expectedOrigin]);
+    const backendOrigin = api.getBackendOrigin();
+    if (backendOrigin) {
+      allowedOrigins.add(backendOrigin);
+    } else if (
+      window.location.hostname === "localhost" &&
+      window.location.port !== "3000"
+    ) {
+      allowedOrigins.add(
+        `${window.location.protocol}//${window.location.hostname}:3000`
+      );
+    }
+
+    let messageReceived = false;
+    let popupClosedTimeout: number | null = null;
+    let popupMonitor: number | null = null;
+
+    const cleanup = () => {
+      window.removeEventListener("message", handleMessage);
+      if (popupMonitor) {
+        clearInterval(popupMonitor);
+        popupMonitor = null;
+      }
+      if (popupClosedTimeout) {
+        clearTimeout(popupClosedTimeout);
+        popupClosedTimeout = null;
+      }
+    };
 
     const handleMessage = (e: MessageEvent) => {
-      // Only accept messages from backend origin
-      try {
-        if (e.origin !== expectedOrigin) return;
-      } catch (err) {
-        // ignore
+      if (!allowedOrigins.has(e.origin)) {
+        console.warn(
+          `[OAuth] Ignoring message from unexpected origin ${e.origin}`
+        );
+        return;
       }
 
       const data = e.data;
       // Expect { success: boolean, accessToken?, user?, message? }
       if (data && typeof data === "object") {
+        messageReceived = true;
         if (data.success) {
           // Set auth in app context
           if (typeof setAuthFromLogin === "function") {
@@ -147,7 +176,7 @@ export function SignInPage() {
         toast.error("Đã xảy ra lỗi khi nhận phản hồi từ Google");
       }
 
-      window.removeEventListener("message", handleMessage);
+      cleanup();
       try {
         popup.close();
       } catch (err) {
@@ -157,12 +186,23 @@ export function SignInPage() {
 
     window.addEventListener("message", handleMessage);
 
-    // If popup is closed by user without completing flow, notify after timeout
-    const checkPopupClosed = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkPopupClosed);
-        window.removeEventListener("message", handleMessage);
-        toast.error("Cửa sổ Google đã bị đóng. Đăng nhập không hoàn tất.");
+    // Monitor popup closure; only show error if no postMessage arrives within 5s
+    popupMonitor = window.setInterval(() => {
+      if (popup.closed && !messageReceived) {
+        if (popupMonitor) {
+          clearInterval(popupMonitor);
+          popupMonitor = null;
+        }
+        if (!popupClosedTimeout) {
+          popupClosedTimeout = window.setTimeout(() => {
+            if (!messageReceived) {
+              toast.error(
+                "Cửa sổ Google đã bị đóng. Đăng nhập không hoàn tất."
+              );
+              cleanup();
+            }
+          }, 5000);
+        }
       }
     }, 500);
   };
