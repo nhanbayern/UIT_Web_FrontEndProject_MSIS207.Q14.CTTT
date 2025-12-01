@@ -59,11 +59,8 @@ export default defineConfig({
   },
   build: {
     target: "esnext",
-    outDir: "build",
-  },
-  server: {
-    port: 5174,
-    open: true,
+    outDir: "dist",
+    chunkSizeWarningLimit: 2000,
   },
   // Dev proxy to avoid cross-site cookie issues during local development
   // Proxy requests starting with /RuouOngTu to backend at http://localhost:3000
