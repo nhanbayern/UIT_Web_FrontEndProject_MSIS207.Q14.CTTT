@@ -30,7 +30,7 @@ interface AppContextType {
   ) => Promise<boolean>;
   setAuthFromLogin?: (token: string, user: any) => void;
   logout: () => Promise<void>;
-  updateProfile: (updatedUser: User) => void;
+  updateProfile: (updatedUser: User) => Promise<void>;
 
   // Orders
   orders: Order[];
@@ -310,8 +310,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("accessToken");
   };
 
-  const updateProfile = (updatedUser: User) => {
-    setUser(updatedUser);
+  const updateProfile = async (updatedUser: User) => {
+    try {
+      const payload = {
+        username: updatedUser.name,
+        email: updatedUser.email,
+        phone_number: updatedUser.phone,
+        avatar: updatedUser.avatar,
+      };
+      const response = await api.updateUserProfile(payload);
+      const returnedUser = response?.user ?? {};
+      setUser({
+        ...updatedUser,
+        name: returnedUser.username ?? returnedUser.name ?? updatedUser.name,
+        email: returnedUser.email ?? updatedUser.email,
+        phone:
+          returnedUser.phone_number ?? returnedUser.phone ?? updatedUser.phone,
+        avatar: returnedUser.avatar ?? updatedUser.avatar,
+      });
+    } catch (error) {
+      console.error("Failed to update profile", error);
+      throw error;
+    }
   };
 
   const placeOrder = (

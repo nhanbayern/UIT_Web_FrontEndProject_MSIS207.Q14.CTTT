@@ -219,6 +219,31 @@ export async function getProfile() {
   return response.json();
 }
 
+export interface UpdateUserPayload {
+  username?: string;
+  email?: string;
+  phone_number?: string;
+  avatar?: string;
+}
+
+export async function updateUserProfile(payload: UpdateUserPayload) {
+  const response = await apiFetch("/user/update", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    let errJson: any = null;
+    try {
+      errJson = await response.json();
+    } catch (err) {
+      /* ignore parse errors */
+    }
+    throw errJson || new Error(`HTTP error! status: ${response.status}`);
+  }
+  return response.json();
+}
+
 /* User addresses */
 export async function getAddresses() {
   const response = await apiFetch("/user/address");

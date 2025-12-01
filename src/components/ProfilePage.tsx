@@ -22,6 +22,7 @@ export function ProfilePage() {
   const { user, orders, updateProfile, logout } = useApp();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [formData, setFormData] = useState({
     name: user.name,
     email: user.email,
@@ -56,17 +57,35 @@ export function ProfilePage() {
     })();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateProfile({
-      ...user,
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      avatar: formData.avatar,
+  useEffect(() => {
+    setFormData({
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar || "",
     });
-    setIsEditing(false);
-    toast.success("Cập nhật thông tin thành công!");
+  }, [user.name, user.email, user.phone, user.avatar]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSavingProfile(true);
+      await updateProfile({
+        ...user,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        avatar: formData.avatar,
+      });
+      toast.success("Cập nhật thông tin thành công!");
+      setIsEditing(false);
+    } catch (error: any) {
+      console.error("[ProfilePage] Update failed", error);
+      const message = error?.message || "Không thể cập nhật thông tin";
+      toast.error(message);
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   const handleLogout = () => {
@@ -206,7 +225,7 @@ export function ProfilePage() {
                                   name: e.target.value,
                                 })
                               }
-                              disabled={!isEditing}
+                              disabled={!isEditing || savingProfile}
                             />
                           </div>
                         </div>
@@ -224,7 +243,7 @@ export function ProfilePage() {
                                   email: e.target.value,
                                 })
                               }
-                              disabled={!isEditing}
+                              disabled={!isEditing || savingProfile}
                             />
                           </div>
                         </div>
@@ -242,7 +261,7 @@ export function ProfilePage() {
                                   phone: e.target.value,
                                 })
                               }
-                              disabled={!isEditing}
+                              disabled={!isEditing || savingProfile}
                             />
                           </div>
                         </div>
@@ -251,6 +270,7 @@ export function ProfilePage() {
                             <Button
                               type="submit"
                               className="bg-red-700 hover:bg-red-800"
+                              disabled={savingProfile}
                             >
                               Lưu Thay Đổi
                             </Button>
@@ -266,6 +286,7 @@ export function ProfilePage() {
                                   avatar: user.avatar || "",
                                 });
                               }}
+                              disabled={savingProfile}
                             >
                               Hủy
                             </Button>
