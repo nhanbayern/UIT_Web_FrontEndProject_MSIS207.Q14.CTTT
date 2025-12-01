@@ -3,7 +3,9 @@ import { Product } from "../types";
 // Cấu hình API base URL. For local dev we prefer relative paths so Vite proxy
 // can forward requests and cookies behave same-site. Set VITE_API_BASE_URL in
 // production builds to a full origin if needed.
-const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL ?? "";
+const RAW_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL ?? "";
+const API_BASE_URL = RAW_BASE_URL.replace(/\/$/, "");
+const CORS_BASE_ORIGIN = API_BASE_URL.replace(/\/RuouOngTu$/, "");
 
 // Access token in-memory management (AppContext sẽ set/clear)
 let accessToken: string | null = null;
@@ -27,6 +29,9 @@ async function doRefresh() {
     const refRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
       method: "POST",
       credentials: "include",
+      headers: CORS_BASE_ORIGIN
+        ? { "X-API-ORIGIN": CORS_BASE_ORIGIN }
+        : undefined,
     });
     if (!refRes.ok) {
       throw refRes;
@@ -50,6 +55,9 @@ async function apiFetch(path: string, init: RequestInit = {}) {
   if (!headers.has("Content-Type"))
     headers.set("Content-Type", "application/json");
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  if (CORS_BASE_ORIGIN && !headers.has("X-API-ORIGIN")) {
+    headers.set("X-API-ORIGIN", CORS_BASE_ORIGIN);
+  }
   const options: RequestInit = { ...init, headers, credentials: "include" };
 
   let res = await fetch(url, options);
@@ -91,6 +99,9 @@ export async function refresh() {
   const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: "POST",
     credentials: "include",
+    headers: CORS_BASE_ORIGIN
+      ? { "X-API-ORIGIN": CORS_BASE_ORIGIN }
+      : undefined,
   });
   console.log("[API DEBUG] Refresh response status:", res.status);
   if (!res.ok) {
