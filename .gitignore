@@ -36,3 +36,9 @@ coverage/
 # Misc
 *.local
 .cache/
+
+#Junk Files (test file by AI)
+PRODUCT_FILTERS_REFACTOR.md
+SMART_NAVIGATION.md
+CART_IMPLEMENTATION_README.md
+API_INTEGRATION_GUIDE.md
