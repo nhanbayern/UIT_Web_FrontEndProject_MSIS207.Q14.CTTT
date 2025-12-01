@@ -316,7 +316,10 @@ export async function fetchProductsByCategory(
 /* Orders */
 export interface CreateOrderPayload {
   items: Array<{ product_id: string; quantity: number }>;
-  shipping_address_id: number;
+  shipping_address_id?: number;
+  shipping_address?: string;
+  recipient_name: string;
+  recipient_phone: string;
   payment_method: "Cash" | "OnlineBanking";
 }
 

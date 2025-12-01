@@ -17,6 +17,19 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const [isAdding, setIsAdding] = useState(false);
+  const numericStock =
+    typeof product.stock === "number"
+      ? product.stock
+      : product.stock != null
+      ? Number(product.stock)
+      : undefined;
+  const stockValue =
+    typeof numericStock === "number" && Number.isFinite(numericStock)
+      ? numericStock
+      : undefined;
+  const isOutOfStock = typeof stockValue === "number" && stockValue <= 0;
+  const isLowStock =
+    typeof stockValue === "number" && stockValue > 0 && stockValue <= 5;
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -33,7 +46,15 @@ export function ProductCard({ product }: ProductCardProps) {
   };
 
   const handleAddToCart = async () => {
-    if (isAdding || product.stock === 0) return;
+    if (isAdding) return;
+
+    if (isOutOfStock) {
+      toast.error("Sản phẩm hiện đã hết hàng", {
+        duration: 2000,
+        position: "top-center",
+      });
+      return;
+    }
 
     setIsAdding(true);
 
@@ -77,6 +98,18 @@ export function ProductCard({ product }: ProductCardProps) {
               {product.region}
             </Badge>
           </div>
+          {isOutOfStock && (
+            <div className="absolute top-4 left-4">
+              <Badge variant="destructive">Hết hàng</Badge>
+            </div>
+          )}
+          {!isOutOfStock && isLowStock && (
+            <div className="absolute top-4 left-4">
+              <Badge variant="secondary" className="bg-amber-500 text-white">
+                Chỉ còn {stockValue} sp
+              </Badge>
+            </div>
+          )}
           {/* rating removed per requirement */}
         </Link>
         <CardContent className="p-6 flex-1 flex flex-col">
@@ -102,6 +135,13 @@ export function ProductCard({ product }: ProductCardProps) {
               <p className="text-xs text-muted-foreground">
                 {product.category}
               </p>
+              {typeof stockValue === "number" && (
+                <p className="text-xs mt-1 text-muted-foreground">
+                  {isOutOfStock
+                    ? "Tạm thời hết hàng"
+                    : `Còn ${stockValue} sản phẩm`}
+                </p>
+              )}
             </div>
           </div>
         </CardContent>
@@ -133,10 +173,10 @@ export function ProductCard({ product }: ProductCardProps) {
               <Button
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-md group-hover:shadow-lg transition-all"
                 onClick={handleAddToCart}
-                disabled={product.stock === 0 || isAdding}
+                disabled={isOutOfStock || isAdding}
               >
                 <ShoppingCart className="h-4 w-4 mr-2" />
-                {product.stock > 0 ? "Thêm Vào Giỏ" : "Hết Hàng"}
+                {isOutOfStock ? "Hết hàng" : "Thêm Vào Giỏ"}
               </Button>
             </motion.div>
           </div>

@@ -9,6 +9,7 @@ export interface CartItem {
   image: string;
   price: number;
   quantity: number;
+  stock?: number | null;
   lastSyncedQuantity?: number; // Track last successfully synced quantity to avoid unnecessary API calls
 }
 
@@ -50,6 +51,7 @@ export interface CartAPIResponse {
     image: string;
     price: number;
     quantity: number;
+    stock: number | null;
     createdAt: string;
   }>;
   totalItems: number;
@@ -70,6 +72,7 @@ export interface AddToCartResponse {
     image: string;
     price: number;
     quantity: number;
+    stock: number | null;
     updatedAt: string;
   };
 }

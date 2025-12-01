@@ -19,6 +19,53 @@ import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { motion } from "motion/react";
 import { Separator } from "./ui/separator";
 
+const defaultShippingAddress: Order["shippingAddress"] = {
+  address_line: "N/A",
+  ward: "",
+  district: "",
+  province: "",
+  is_default: false,
+};
+
+const parseShippingAddress = (
+  rawAddress: unknown
+): Order["shippingAddress"] => {
+  if (!rawAddress || typeof rawAddress !== "string") {
+    return { ...defaultShippingAddress };
+  }
+
+  const parts = rawAddress
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return { ...defaultShippingAddress };
+  }
+
+  const [addressLine, ward, district, ...rest] = parts;
+  return {
+    address_line: addressLine || rawAddress.trim(),
+    ward: ward || "",
+    district: district || "",
+    province: rest.join(", ") || "",
+    is_default: false,
+  };
+};
+
+const buildShippingLines = (address: Order["shippingAddress"]) => {
+  const lines = [
+    address.address_line,
+    address.ward,
+    address.district,
+    address.province,
+  ]
+    .map((line) => line?.trim())
+    .filter((line) => line && line !== "N/A");
+
+  return lines.length > 0 ? lines : ["N/A"];
+};
+
 export function ManageOrdersPage() {
   const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -38,33 +85,55 @@ export function ManageOrdersPage() {
       OnlineBanking: "ewallet",
     };
 
-    return {
-      id: String(backendOrder.order_id),
-      date: backendOrder.created_at || new Date().toISOString(),
-      status: statusMap[backendOrder.order_status] || "processing",
-      total: parseFloat(backendOrder.total_amount) || 0,
-      customerName: backendOrder.customer?.name || "N/A",
-      customerPhone: backendOrder.customer?.phone || "N/A",
-      paymentMethod: paymentMethodMap[backendOrder.payment_method] || "cash",
-      shippingAddress: {
-        address_line: backendOrder.shipping_address || "N/A",
-        ward: "N/A",
-        district: "N/A",
-        province: "N/A",
-        is_default: false,
-      },
-      items:
-        backendOrder.orderDetails?.map((detail: any) => ({
+    const items =
+      backendOrder.orderDetails?.map((detail: any) => {
+        const quantity = detail.quantity || 1;
+        const unitPrice =
+          parseFloat(detail.unit_price) ||
+          parseFloat(detail.product?.sale_price) ||
+          parseFloat(detail.product?.price) ||
+          0;
+        const lineTotal =
+          parseFloat(detail.total_price) || unitPrice * quantity;
+
+        return {
           product: {
             id: String(detail.product?.product_id),
             name: detail.product?.product_name || "N/A",
-            price: parseFloat(detail.product?.price) || 0,
+            price: unitPrice,
             image: detail.product?.image || "",
-            region: "N/A",
-            category: "N/A",
+            description:
+              detail.product?.description ||
+              detail.product?.short_description ||
+              "",
+            region: detail.product?.region || "",
+            category: detail.product?.category || "",
           },
-          quantity: detail.quantity || 1,
-        })) || [],
+          quantity,
+          unitPrice,
+          lineTotal,
+        };
+      }) || [];
+
+    const sortedItems = [...items].sort((a, b) => {
+      const totalA = a.lineTotal ?? (a.unitPrice ?? 0) * a.quantity;
+      const totalB = b.lineTotal ?? (b.unitPrice ?? 0) * b.quantity;
+      return totalA - totalB;
+    });
+
+    return {
+      id: String(backendOrder.order_id),
+      orderCode: backendOrder.order_code || undefined,
+      date: backendOrder.created_at || new Date().toISOString(),
+      status: statusMap[backendOrder.order_status] || "processing",
+      total: parseFloat(backendOrder.total_amount) || 0,
+      customerName:
+        backendOrder.recipient_name || backendOrder.customer?.name || "N/A",
+      customerPhone:
+        backendOrder.recipient_phone || backendOrder.customer?.phone || "N/A",
+      paymentMethod: paymentMethodMap[backendOrder.payment_method] || "cash",
+      shippingAddress: parseShippingAddress(backendOrder.shipping_address),
+      items: sortedItems,
     };
   };
 
@@ -220,6 +289,8 @@ export function ManageOrdersPage() {
 
   const OrderCard = ({ order }: { order: Order }) => {
     const statusConfig = getStatusConfig(order.status);
+    const displayOrderCode = order.orderCode || order.id;
+    const shippingLines = buildShippingLines(order.shippingAddress);
     const StatusIcon = statusConfig.icon;
 
     return (
@@ -237,7 +308,7 @@ export function ManageOrdersPage() {
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <CardTitle style={{ fontSize: "1.125rem" }}>
-                  Đơn hàng #{order.id}
+                  Đơn hàng {displayOrderCode}
                 </CardTitle>
                 <div
                   className="flex items-center gap-2 text-muted-foreground"
@@ -265,9 +336,14 @@ export function ManageOrdersPage() {
                 >
                   <Package className="h-4 w-4 text-primary" />
                   <span className="font-medium">Người nhận:</span>
-                  <span className="text-muted-foreground">
-                    {order.customerName}
-                  </span>
+                  <div className="text-muted-foreground">
+                    <p>{order.customerName}</p>
+                    {order.customerPhone && order.customerPhone !== "N/A" && (
+                      <p className="text-xs text-muted-foreground/80">
+                        {order.customerPhone}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div
                   className="flex items-center gap-2"
@@ -289,12 +365,12 @@ export function ManageOrdersPage() {
                   <div>
                     <p className="font-medium mb-1">Địa chỉ giao hàng:</p>
                     <p className="text-muted-foreground">
-                      {order.shippingAddress.address_line}
-                      <br />
-                      {order.shippingAddress.ward},{" "}
-                      {order.shippingAddress.district}
-                      <br />
-                      {order.shippingAddress.province}
+                      {shippingLines.map((line, index) => (
+                        <span key={`${line}-${index}`}>
+                          {line}
+                          {index < shippingLines.length - 1 && <br />}
+                        </span>
+                      ))}
                     </p>
                   </div>
                 </div>
@@ -312,45 +388,58 @@ export function ManageOrdersPage() {
                 Sản phẩm ({order.items.length})
               </p>
               <div className="space-y-3">
-                {order.items.map((item) => (
-                  <div
-                    key={item.product.id}
-                    className="flex gap-3 p-3 rounded-lg bg-muted/30"
-                  >
-                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 flex-shrink-0">
-                      <ImageWithFallback
-                        src={item.product.image}
-                        alt={item.product.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className="font-medium line-clamp-2"
-                        style={{ fontSize: "0.875rem" }}
-                      >
-                        {item.product.name}
-                      </p>
-                      <p
-                        style={{ fontSize: "0.75rem" }}
-                        className="text-muted-foreground mt-1"
-                      >
-                        {item.product.region} • {item.product.category}
-                      </p>
-                      <div className="flex items-center justify-between mt-2">
-                        <span
+                {order.items.map((item) => {
+                  const subtitle =
+                    item.product.description?.trim() ||
+                    [item.product.region, item.product.category]
+                      .map((text) => text?.trim())
+                      .filter(Boolean)
+                      .join(" • ") ||
+                    "Không có mô tả";
+                  const lineTotal =
+                    item.lineTotal ??
+                    (item.unitPrice ?? item.product.price) * item.quantity;
+
+                  return (
+                    <div
+                      key={item.product.id}
+                      className="flex gap-3 p-3 rounded-lg bg-muted/30"
+                    >
+                      <div className="w-16 h-16 rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50 flex-shrink-0">
+                        <ImageWithFallback
+                          src={item.product.image}
+                          alt={item.product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className="font-medium line-clamp-2"
                           style={{ fontSize: "0.875rem" }}
-                          className="text-muted-foreground"
                         >
-                          Số lượng: {item.quantity}
-                        </span>
-                        <span className="font-semibold text-primary">
-                          {formatPrice(item.product.price * item.quantity)}
-                        </span>
+                          {item.product.name}
+                        </p>
+                        <p
+                          style={{ fontSize: "0.75rem" }}
+                          className="text-muted-foreground mt-1 line-clamp-2"
+                        >
+                          {subtitle}
+                        </p>
+                        <div className="flex items-center justify-between mt-2">
+                          <span
+                            style={{ fontSize: "0.875rem" }}
+                            className="text-muted-foreground"
+                          >
+                            Số lượng: {item.quantity}
+                          </span>
+                          <span className="font-semibold text-primary">
+                            {formatPrice(lineTotal)}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

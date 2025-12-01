@@ -133,8 +133,36 @@ export function CartPage() {
     const currentItem = cartItems.find((item) => item.productId === productId);
     if (!currentItem) return;
 
+    if (typeof currentItem.stock === "number" && currentItem.stock <= 0) {
+      toast.error("Sản phẩm đã hết hàng, vui lòng xóa khỏi giỏ hàng", {
+        duration: 2000,
+        position: "top-center",
+      });
+      setEditingQuantity((prev) => {
+        const next = { ...prev };
+        next[productId] = String(currentItem.quantity);
+        return next;
+      });
+      return;
+    }
+
+    const maxQuantity =
+      typeof currentItem.stock === "number" && currentItem.stock > 0
+        ? currentItem.stock
+        : undefined;
+    const clampedQuantity = maxQuantity
+      ? Math.min(newQuantity, maxQuantity)
+      : newQuantity;
+
+    if (maxQuantity && newQuantity > maxQuantity) {
+      toast.info(`Chỉ còn ${maxQuantity} sản phẩm trong kho`, {
+        duration: 2000,
+        position: "top-center",
+      });
+    }
+
     // If quantity didn't change, just clear editing state
-    if (newQuantity === currentItem.quantity) {
+    if (clampedQuantity === currentItem.quantity) {
       setEditingQuantity((prev) => {
         const next = { ...prev };
         delete next[productId];
@@ -147,14 +175,14 @@ export function CartPage() {
     setUpdatingItems((prev) => new Set(prev).add(productId));
 
     try {
-      await updateCartItemQuantity(productId, newQuantity);
-      updateLocalQuantity(productId, newQuantity);
+      await updateCartItemQuantity(productId, clampedQuantity);
+      updateLocalQuantity(productId, clampedQuantity);
       setEditingQuantity((prev) => {
         const next = { ...prev };
         delete next[productId];
         return next;
       });
-      toast.success(`Đã cập nhật số lượng thành ${newQuantity}`, {
+      toast.success(`Đã cập nhật số lượng thành ${clampedQuantity}`, {
         duration: 1500,
         position: "top-center",
       });
@@ -183,6 +211,24 @@ export function CartPage() {
   const handleIncrement = async (productId: string) => {
     const item = cartItems.find((i) => i.productId === productId);
     if (!item) return;
+
+    if (typeof item.stock === "number") {
+      if (item.stock <= 0) {
+        toast.error("Sản phẩm đã hết hàng, vui lòng xóa khỏi giỏ hàng", {
+          duration: 2000,
+          position: "top-center",
+        });
+        return;
+      }
+
+      if (item.quantity >= item.stock) {
+        toast.info(`Chỉ còn ${item.stock} sản phẩm trong kho`, {
+          duration: 2000,
+          position: "top-center",
+        });
+        return;
+      }
+    }
 
     // Optimistic update
     updateLocalQuantity(productId, item.quantity + 1);
@@ -388,91 +434,135 @@ export function CartPage() {
           {/* Cart Items */}
           <div className="lg:col-span-2 space-y-4">
             <AnimatePresence mode="popLayout">
-              {cartItems.map((item) => (
-                <motion.div
-                  key={item.productId}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -100 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  <Card className="border-border/50 shadow-md hover:shadow-lg transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex gap-6">
-                        {/* Product Image */}
-                        <div className="w-28 h-28 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50">
-                          <ImageWithFallback
-                            src={item.image}
-                            alt={item.productName}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
+              {cartItems.map((item) => {
+                const itemStock =
+                  typeof item.stock === "number" ? item.stock : null;
+                const isOutOfStock = itemStock !== null && itemStock <= 0;
+                const isAtStockLimit =
+                  itemStock !== null &&
+                  itemStock > 0 &&
+                  item.quantity >= itemStock;
 
-                        {/* Product Info */}
-                        <div className="flex-1">
-                          <h3 className="mb-2 text-lg">{item.productName}</h3>
-                          <p className="text-xl font-semibold text-primary mb-3">
-                            {formatPrice(item.price)}
-                          </p>
-                        </div>
-
-                        {/* Quantity Controls & Remove */}
-                        <div className="flex flex-col items-end gap-4">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => handleRemoveItem(item.productId)}
-                            disabled={updatingItems.has(item.productId)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-
-                          <div className="flex items-center gap-2 border rounded-lg bg-white shadow-sm">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-10 w-10 hover:bg-primary/5"
-                              onClick={() => handleDecrement(item.productId)}
-                              disabled={updatingItems.has(item.productId)}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-
-                            <Input
-                              type="text"
-                              inputMode="numeric"
-                              value={
-                                editingQuantity[item.productId] !== undefined
-                                  ? editingQuantity[item.productId]
-                                  : item.quantity
-                              }
-                              onChange={(e) =>
-                                handleQuantityChange(
-                                  item.productId,
-                                  e.target.value
-                                )
-                              }
-                              disabled={updatingItems.has(item.productId)}
-                              className="w-10 h-10 text-center font-medium border-0 p-0"
+                return (
+                  <motion.div
+                    key={item.productId}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, x: -100 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Card className="border-border/50 shadow-md hover:shadow-lg transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex gap-6">
+                          {/* Product Image */}
+                          <div className="w-28 h-28 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50">
+                            <ImageWithFallback
+                              src={item.image}
+                              alt={item.productName}
+                              className="w-full h-full object-cover"
                             />
+                          </div>
 
+                          {/* Product Info */}
+                          <div className="flex-1">
+                            <h3 className="mb-2 text-lg">{item.productName}</h3>
+                            <p className="text-xl font-semibold text-primary mb-3">
+                              {formatPrice(item.price)}
+                            </p>
+                            {itemStock !== null && (
+                              <p
+                                className={`text-sm ${
+                                  isOutOfStock
+                                    ? "text-destructive"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {isOutOfStock
+                                  ? "Sản phẩm đã hết hàng"
+                                  : `Tồn kho: ${itemStock} sản phẩm`}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Quantity Controls & Remove */}
+                          <div className="flex flex-col items-end gap-4">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-10 w-10 hover:bg-primary/5"
-                              onClick={() => handleIncrement(item.productId)}
+                              className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => handleRemoveItem(item.productId)}
                               disabled={updatingItems.has(item.productId)}
                             >
-                              <Plus className="h-4 w-4" />
+                              <Trash2 className="h-4 w-4" />
                             </Button>
+
+                            <div className="flex items-center gap-2 border rounded-lg bg-white shadow-sm">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10 hover:bg-primary/5"
+                                onClick={() => handleDecrement(item.productId)}
+                                disabled={updatingItems.has(item.productId)}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                value={
+                                  editingQuantity[item.productId] !== undefined
+                                    ? editingQuantity[item.productId]
+                                    : item.quantity
+                                }
+                                onChange={(e) =>
+                                  handleQuantityChange(
+                                    item.productId,
+                                    e.target.value
+                                  )
+                                }
+                                disabled={updatingItems.has(item.productId)}
+                                className="w-10 h-10 text-center font-medium border-0 p-0"
+                              />
+
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-10 w-10 hover:bg-primary/5"
+                                onClick={() => handleIncrement(item.productId)}
+                                disabled={
+                                  updatingItems.has(item.productId) ||
+                                  isOutOfStock ||
+                                  isAtStockLimit
+                                }
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            {itemStock !== null && (
+                              <p
+                                className={`text-xs text-right ${
+                                  isOutOfStock
+                                    ? "text-destructive"
+                                    : isAtStockLimit
+                                    ? "text-amber-600"
+                                    : "text-muted-foreground"
+                                }`}
+                              >
+                                {isOutOfStock
+                                  ? "Vui lòng xóa sản phẩm này"
+                                  : isAtStockLimit
+                                  ? "Đã đạt số lượng tối đa"
+                                  : `Số lượng giỏ: ${item.quantity}`}
+                              </p>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </div>
 

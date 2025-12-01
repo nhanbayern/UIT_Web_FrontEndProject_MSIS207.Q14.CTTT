@@ -91,16 +91,31 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       if (existingIndex >= 0) {
         // Item exists - increment quantity
         const newItems = [...state.items];
+        const existingItem = newItems[existingIndex];
+        const maxQuantity =
+          typeof existingItem.stock === "number" && existingItem.stock > 0
+            ? existingItem.stock
+            : Infinity;
         newItems[existingIndex] = {
-          ...newItems[existingIndex],
-          quantity: newItems[existingIndex].quantity + 1,
+          ...existingItem,
+          quantity: Math.min(existingItem.quantity + 1, maxQuantity),
         };
         return { ...state, items: newItems };
       } else {
         // New item - add to cart
         return {
           ...state,
-          items: [...state.items, { ...action.payload, lastSyncedQuantity: 0 }],
+          items: [
+            ...state.items,
+            {
+              ...action.payload,
+              stock:
+                typeof action.payload.stock === "number"
+                  ? action.payload.stock
+                  : null,
+              lastSyncedQuantity: 0,
+            },
+          ],
         };
       }
     }
@@ -109,11 +124,20 @@ function cartReducer(state: CartState, action: CartAction): CartState {
       const { productId, quantity } = action.payload;
       return {
         ...state,
-        items: state.items.map((item) =>
-          item.productId === productId
-            ? { ...item, quantity: Math.max(1, quantity) }
-            : item
-        ),
+        items: state.items.map((item) => {
+          if (item.productId !== productId) return item;
+
+          const safeQuantity = Math.max(1, quantity);
+          const maxQuantity =
+            typeof item.stock === "number" && item.stock > 0
+              ? item.stock
+              : undefined;
+          const clampedQuantity = maxQuantity
+            ? Math.min(safeQuantity, maxQuantity)
+            : safeQuantity;
+
+          return { ...item, quantity: clampedQuantity };
+        }),
       };
     }
 
@@ -206,6 +230,7 @@ export function CartProvider({ children }: CartProviderProps) {
         image: item.image || "/placeholder-product.png",
         price: item.price,
         quantity: item.quantity,
+        stock: typeof item.stock === "number" ? item.stock : null,
         lastSyncedQuantity: item.quantity,
       }));
 
@@ -244,6 +269,7 @@ export function CartProvider({ children }: CartProviderProps) {
         image: image || "/placeholder-product.png",
         price,
         quantity: 1,
+        stock: null,
         lastSyncedQuantity: 0,
       };
 
@@ -284,15 +310,35 @@ export function CartProvider({ children }: CartProviderProps) {
 
       // Enforce minimum quantity of 1
       const safeQuantity = Math.max(1, newQuantity);
+      const maxQuantity =
+        typeof item.stock === "number" && item.stock > 0
+          ? item.stock
+          : undefined;
+      const clampedQuantity = maxQuantity
+        ? Math.min(safeQuantity, maxQuantity)
+        : safeQuantity;
+      const wasClamped = Boolean(
+        maxQuantity && clampedQuantity !== safeQuantity
+      );
 
       // Update local state immediately
       dispatch({
         type: "UPDATE_LOCAL_QUANTITY",
-        payload: { productId, quantity: safeQuantity },
+        payload: { productId, quantity: clampedQuantity },
       });
 
+      if (wasClamped && maxQuantity) {
+        toast.info(
+          `Số lượng tối đa của ${item.productName} là ${maxQuantity} sản phẩm`,
+          {
+            duration: 2000,
+            position: "top-center",
+          }
+        );
+      }
+
       // Check if quantity actually changed from last synced value
-      if (item.lastSyncedQuantity === safeQuantity) {
+      if (item.lastSyncedQuantity === clampedQuantity) {
         // No change needed, cancel any pending sync
         debouncerRef.current.cancel(productId);
         return;
@@ -306,12 +352,12 @@ export function CartProvider({ children }: CartProviderProps) {
           );
 
           // Call API to sync quantity
-          await syncQuantityUpdate(productId, safeQuantity);
+          await syncQuantityUpdate(productId, clampedQuantity);
 
           // Update lastSyncedQuantity after successful sync
           dispatch({
             type: "UPDATE_SYNCED_QUANTITY",
-            payload: { productId, quantity: safeQuantity },
+            payload: { productId, quantity: clampedQuantity },
           });
 
           dispatch({

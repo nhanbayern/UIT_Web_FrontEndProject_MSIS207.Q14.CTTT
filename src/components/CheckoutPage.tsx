@@ -6,7 +6,13 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Separator } from "./ui/separator";
-import { Checkbox } from "./ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import {
   CreditCard,
   Banknote,
@@ -19,7 +25,8 @@ import { toast } from "sonner";
 import { useApp } from "../contexts/AppContext";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { getCartItems } from "../services/cart.service";
-import { createOrder } from "../services/api";
+import { createOrder, getAddresses } from "../services/api";
+import type { CreateOrderPayload } from "../services/api";
 import { CartItem } from "../types/cart.types";
 import heroTaVan from "../assets/herotavan.jpg";
 
@@ -30,22 +37,36 @@ const RAW_IMAGE_BASE =
   ).trim() || "http://localhost:3000";
 const IMAGE_BASE_URL = RAW_IMAGE_BASE.replace(/\/$/, "");
 
+interface UserAddress {
+  address_id: number;
+  address_line: string;
+  ward?: string;
+  district?: string;
+  province?: string;
+  is_default?: number;
+}
+
 export function CheckoutPage() {
   const navigate = useNavigate();
-  const { authChecked, isLoggedIn } = useApp();
+  const { authChecked, isLoggedIn, user } = useApp();
+  const accountPhone = (user?.phone || "").trim();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "ewallet">(
     "cash"
   );
-  const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
+  const [customerName, setCustomerName] = useState(user?.name || "");
+  const [phoneOption, setPhoneOption] = useState<"account" | "custom">(
+    accountPhone ? "account" : "custom"
+  );
+  const [customPhone, setCustomPhone] = useState("");
+  const [savedAddresses, setSavedAddresses] = useState<UserAddress[]>([]);
+  const [addressSelection, setAddressSelection] = useState<string>("new");
   const [address, setAddress] = useState({
     address_line: "",
     ward: "",
     district: "",
     province: "",
-    is_default: false,
   });
 
   // Load cart items
@@ -74,11 +95,51 @@ export function CheckoutPage() {
     loadCartItems();
   }, [authChecked, isLoggedIn]);
 
+  useEffect(() => {
+    if (user?.name) {
+      setCustomerName((prev) => (prev ? prev : user.name));
+    }
+  }, [user?.name]);
+
+  useEffect(() => {
+    const loadAddresses = async () => {
+      if (!authChecked || !isLoggedIn) {
+        return;
+      }
+      try {
+        const result = await getAddresses();
+        if (Array.isArray(result)) {
+          setSavedAddresses(result);
+          if (result.length > 0) {
+            setAddressSelection(String(result[0].address_id));
+          }
+        }
+      } catch (err) {
+        console.error("[CheckoutPage] Error loading addresses:", err);
+        toast.error("Không thể tải địa chỉ đã lưu");
+      }
+    };
+
+    loadAddresses();
+  }, [authChecked, isLoggedIn]);
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
     }).format(price);
+  };
+
+  const formatAddressDisplay = (addr: {
+    address_line: string;
+    ward?: string;
+    district?: string;
+    province?: string;
+  }) => {
+    return [addr.address_line, addr.ward, addr.district, addr.province]
+      .map((part) => (typeof part === "string" ? part.trim() : ""))
+      .filter(Boolean)
+      .join(", ");
   };
 
   const getImageUrl = (imageUrl: string) => {
@@ -105,6 +166,17 @@ export function CheckoutPage() {
   );
   const shipping = 50000;
   const total = subtotal + shipping;
+  const selectedSavedAddress = savedAddresses.find(
+    (addr) => String(addr.address_id) === addressSelection
+  );
+
+  const handlePhoneOptionChange = (value: string) => {
+    if (value === "account" && !accountPhone) {
+      toast.error("Bạn chưa cập nhật số điện thoại trong hồ sơ");
+      return;
+    }
+    setPhoneOption(value as "account" | "custom");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,24 +186,36 @@ export function CheckoutPage() {
       toast.error("Vui lòng nhập họ tên");
       return;
     }
-    if (!customerPhone.trim()) {
-      toast.error("Vui lòng nhập số điện thoại");
+
+    const effectivePhone =
+      phoneOption === "account" ? accountPhone : customPhone.trim();
+    if (!effectivePhone) {
+      toast.error("Vui lòng nhập số điện thoại liên hệ");
       return;
     }
-    if (!address.address_line.trim()) {
-      toast.error("Vui lòng nhập địa chỉ chi tiết");
-      return;
-    }
-    if (!address.ward.trim()) {
-      toast.error("Vui lòng nhập phường/xã");
-      return;
-    }
-    if (!address.district.trim()) {
-      toast.error("Vui lòng nhập quận/huyện");
-      return;
-    }
-    if (!address.province.trim()) {
-      toast.error("Vui lòng nhập tỉnh/thành phố");
+
+    const useNewAddress =
+      addressSelection === "new" || savedAddresses.length === 0;
+
+    if (useNewAddress) {
+      if (!address.address_line.trim()) {
+        toast.error("Vui lòng nhập địa chỉ chi tiết");
+        return;
+      }
+      if (!address.ward.trim()) {
+        toast.error("Vui lòng nhập phường/xã");
+        return;
+      }
+      if (!address.district.trim()) {
+        toast.error("Vui lòng nhập quận/huyện");
+        return;
+      }
+      if (!address.province.trim()) {
+        toast.error("Vui lòng nhập tỉnh/thành phố");
+        return;
+      }
+    } else if (!selectedSavedAddress) {
+      toast.error("Vui lòng chọn địa chỉ giao hàng");
       return;
     }
 
@@ -142,10 +226,23 @@ export function CheckoutPage() {
         quantity: item.quantity,
       }));
 
-      const payload = {
+      const payload: CreateOrderPayload = {
         items,
-        shipping_address_id: 1, // TODO: Get actual address ID from user_address table
         payment_method: paymentMethod === "cash" ? "Cash" : "OnlineBanking",
+        recipient_name: customerName.trim(),
+        recipient_phone: effectivePhone,
+        ...(useNewAddress
+          ? {
+              shipping_address: formatAddressDisplay({
+                address_line: address.address_line.trim(),
+                ward: address.ward.trim(),
+                district: address.district.trim(),
+                province: address.province.trim(),
+              }),
+            }
+          : {
+              shipping_address_id: Number(selectedSavedAddress.address_id),
+            }),
       };
 
       // Call createOrder API
@@ -248,30 +345,69 @@ export function CheckoutPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="name">Họ và tên *</Label>
-                        <Input
-                          id="name"
-                          placeholder="Nguyễn Văn A"
-                          value={customerName}
-                          onChange={(e) => setCustomerName(e.target.value)}
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="phone">Số điện thoại *</Label>
-                        <Input
-                          id="phone"
-                          type="tel"
-                          placeholder="0912345678"
-                          value={customerPhone}
-                          onChange={(e) => setCustomerPhone(e.target.value)}
-                          required
-                          className="mt-2"
-                        />
-                      </div>
+                    <div>
+                      <Label htmlFor="name">Họ và tên *</Label>
+                      <Input
+                        id="name"
+                        placeholder="Nguyễn Văn A"
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        required
+                        className="mt-2"
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <Label>Số điện thoại *</Label>
+                      <RadioGroup
+                        value={phoneOption}
+                        onValueChange={handlePhoneOptionChange}
+                        className="space-y-3"
+                      >
+                        <label
+                          htmlFor="phone-account"
+                          className={`flex items-start gap-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                            phoneOption === "account"
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50"
+                          } ${
+                            !accountPhone ? "opacity-60 cursor-not-allowed" : ""
+                          }`}
+                        >
+                          <RadioGroupItem
+                            value="account"
+                            id="phone-account"
+                            disabled={!accountPhone}
+                          />
+                          <div>
+                            <p className="font-medium">
+                              Sử dụng số điện thoại tài khoản
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {accountPhone || "Chưa cập nhật số điện thoại"}
+                            </p>
+                          </div>
+                        </label>
+                        <label
+                          htmlFor="phone-custom"
+                          className={`flex flex-col gap-2 p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                            phoneOption === "custom"
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:border-primary/50"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <RadioGroupItem value="custom" id="phone-custom" />
+                            <p className="font-medium">Nhập số khác</p>
+                          </div>
+                          <Input
+                            type="tel"
+                            placeholder="0912345678"
+                            value={customPhone}
+                            onChange={(e) => setCustomPhone(e.target.value)}
+                            disabled={phoneOption !== "custom"}
+                          />
+                        </label>
+                      </RadioGroup>
                     </div>
                   </CardContent>
                 </Card>
@@ -288,83 +424,116 @@ export function CheckoutPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="address_line">Địa chỉ chi tiết *</Label>
-                      <Input
-                        id="address_line"
-                        placeholder="Số nhà, tên đường..."
-                        value={address.address_line}
-                        onChange={(e) =>
-                          setAddress({
-                            ...address,
-                            address_line: e.target.value,
-                          })
-                        }
-                        required
-                        className="mt-2"
-                      />
-                    </div>
+                    {savedAddresses.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Chọn địa chỉ đã lưu</Label>
+                        <Select
+                          value={addressSelection}
+                          onValueChange={(value) => setAddressSelection(value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Chọn địa chỉ" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {savedAddresses.map((saved) => (
+                              <SelectItem
+                                key={saved.address_id}
+                                value={String(saved.address_id)}
+                              >
+                                {saved.is_default ? "Mặc định • " : ""}
+                                {formatAddressDisplay(saved)}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="new">
+                              + Thêm địa chỉ mới
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {addressSelection !== "new" && selectedSavedAddress && (
+                          <p className="text-sm text-muted-foreground">
+                            {formatAddressDisplay(selectedSavedAddress)}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <Label htmlFor="ward">Phường/Xã *</Label>
-                        <Input
-                          id="ward"
-                          placeholder="Phường 1"
-                          value={address.ward}
-                          onChange={(e) =>
-                            setAddress({ ...address, ward: e.target.value })
-                          }
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="district">Quận/Huyện *</Label>
-                        <Input
-                          id="district"
-                          placeholder="Quận 1"
-                          value={address.district}
-                          onChange={(e) =>
-                            setAddress({ ...address, district: e.target.value })
-                          }
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="province">Tỉnh/Thành phố *</Label>
-                        <Input
-                          id="province"
-                          placeholder="TP. Hồ Chí Minh"
-                          value={address.province}
-                          onChange={(e) =>
-                            setAddress({ ...address, province: e.target.value })
-                          }
-                          required
-                          className="mt-2"
-                        />
-                      </div>
-                    </div>
+                    {(addressSelection === "new" ||
+                      savedAddresses.length === 0) && (
+                      <>
+                        <div>
+                          <Label htmlFor="address_line">
+                            Địa chỉ chi tiết *
+                          </Label>
+                          <Input
+                            id="address_line"
+                            placeholder="Số nhà, tên đường..."
+                            value={address.address_line}
+                            onChange={(e) =>
+                              setAddress({
+                                ...address,
+                                address_line: e.target.value,
+                              })
+                            }
+                            required
+                            className="mt-2"
+                          />
+                        </div>
 
-                    <div className="flex items-center space-x-2 pt-2">
-                      <Checkbox
-                        id="is_default"
-                        checked={address.is_default}
-                        onCheckedChange={(checked) =>
-                          setAddress({
-                            ...address,
-                            is_default: checked as boolean,
-                          })
-                        }
-                      />
-                      <label
-                        htmlFor="is_default"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        Đặt làm địa chỉ mặc định
-                      </label>
-                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <Label htmlFor="ward">Phường/Xã *</Label>
+                            <Input
+                              id="ward"
+                              placeholder="Phường 1"
+                              value={address.ward}
+                              onChange={(e) =>
+                                setAddress({ ...address, ward: e.target.value })
+                              }
+                              required
+                              className="mt-2"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="district">Quận/Huyện *</Label>
+                            <Input
+                              id="district"
+                              placeholder="Quận 1"
+                              value={address.district}
+                              onChange={(e) =>
+                                setAddress({
+                                  ...address,
+                                  district: e.target.value,
+                                })
+                              }
+                              required
+                              className="mt-2"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="province">Tỉnh/Thành phố *</Label>
+                            <Input
+                              id="province"
+                              placeholder="TP. Hồ Chí Minh"
+                              value={address.province}
+                              onChange={(e) =>
+                                setAddress({
+                                  ...address,
+                                  province: e.target.value,
+                                })
+                              }
+                              required
+                              className="mt-2"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {savedAddresses.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        Bạn chưa có địa chỉ lưu. Vui lòng nhập địa chỉ mới.
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
 

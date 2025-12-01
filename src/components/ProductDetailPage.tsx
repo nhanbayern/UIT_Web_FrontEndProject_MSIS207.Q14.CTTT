@@ -147,6 +147,24 @@ export default function ProductDetailPage({
       return;
     }
 
+    const parsedStock =
+      typeof product.stock === "number"
+        ? product.stock
+        : product.stock != null
+        ? Number(product.stock)
+        : null;
+    const stockValue =
+      typeof parsedStock === "number" && Number.isFinite(parsedStock)
+        ? parsedStock
+        : null;
+    if (stockValue !== null && stockValue <= 0) {
+      toast.error("Sản phẩm đã hết hàng", {
+        duration: 2000,
+        position: "top-center",
+      });
+      return;
+    }
+
     if (isAddingToCart) return;
 
     setIsAddingToCart(true);
@@ -196,6 +214,19 @@ export default function ProductDetailPage({
     );
   }
 
+  const parsedStock =
+    typeof product.stock === "number"
+      ? product.stock
+      : product.stock != null
+      ? Number(product.stock)
+      : null;
+  const stockValue =
+    typeof parsedStock === "number" && Number.isFinite(parsedStock)
+      ? parsedStock
+      : null;
+  const isOutOfStock = stockValue !== null && stockValue <= 0;
+  const isLowStock = stockValue !== null && stockValue > 0 && stockValue <= 5;
+
   return (
     <>
       {/* ===================== MAIN CONTENT BELOW HERO ===================== */}
@@ -228,11 +259,16 @@ export default function ProductDetailPage({
                       className="w-full h-full object-contain"
                     />
 
-                    {product.stock < 10 && product.stock > 0 && (
+                    {isLowStock && (
                       <div className="absolute top-4 left-4">
                         <Badge variant="destructive">
-                          Chỉ còn {product.stock} sản phẩm
+                          Chỉ còn {stockValue} sản phẩm
                         </Badge>
+                      </div>
+                    )}
+                    {isOutOfStock && (
+                      <div className="absolute top-4 left-4">
+                        <Badge variant="destructive">Hết hàng</Badge>
                       </div>
                     )}
                   </div>
@@ -270,6 +306,13 @@ export default function ProductDetailPage({
                     {formatPrice(product.price)}
                   </span>
                 </div>
+                {stockValue !== null && (
+                  <p className="text-sm mt-2">
+                    {isOutOfStock
+                      ? "Sản phẩm hiện đã hết hàng"
+                      : `Còn ${stockValue} sản phẩm trong kho`}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -328,7 +371,11 @@ export default function ProductDetailPage({
                   <div>
                     <p className="text-sm text-muted-foreground">Tình trạng</p>
                     <p className="font-semibold text-primary">
-                      {product.stock > 0 ? "Còn hàng" : "Hết hàng"}
+                      {isOutOfStock
+                        ? "Hết hàng"
+                        : stockValue !== null
+                        ? `Còn ${stockValue} sản phẩm`
+                        : "Đang cập nhật"}
                     </p>
                   </div>
                 </div>
@@ -336,14 +383,21 @@ export default function ProductDetailPage({
 
               <Separator />
 
+              {isOutOfStock && (
+                <div className="p-4 rounded-lg border border-destructive/30 bg-destructive/5 text-destructive">
+                  Sản phẩm tạm thời hết hàng. Vui lòng chọn sản phẩm khác hoặc
+                  quay lại sau.
+                </div>
+              )}
+
               <Button
                 size="lg"
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-lg py-6 shadow-lg"
                 onClick={handleAddToCart}
-                disabled={product.stock === 0 || isAddingToCart}
+                disabled={isOutOfStock || isAddingToCart}
               >
                 <ShoppingCart className="h-5 w-5 mr-2" />
-                {product.stock > 0 ? "Thêm vào giỏ hàng" : "Hết hàng"}
+                {isOutOfStock ? "Hết hàng" : "Thêm vào giỏ hàng"}
               </Button>
             </motion.div>
           </div>

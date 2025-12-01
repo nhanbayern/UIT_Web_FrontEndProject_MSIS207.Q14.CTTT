@@ -33,6 +33,8 @@ export interface Product {
 export interface CartItem {
   product: Product;
   quantity: number;
+  unitPrice?: number;
+  lineTotal?: number;
 }
 
 export interface Address {
@@ -45,6 +47,7 @@ export interface Address {
 
 export interface Order {
   id: string;
+  orderCode?: string;
   items: CartItem[];
   total: number;
   status: "processing" | "shipping" | "delivered" | "cancelled";
