@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -48,6 +48,7 @@ interface UserAddress {
 
 export function CheckoutPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { authChecked, isLoggedIn, user } = useApp();
   const accountPhone = (user?.phone || "").trim();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -68,6 +69,14 @@ export function CheckoutPage() {
     district: "",
     province: "",
   });
+  const selectedProductIds = useMemo(() => {
+    const ids = (location.state as { selectedProductIds?: unknown })
+      ?.selectedProductIds;
+    if (!Array.isArray(ids)) return [];
+    return ids
+      .map((id) => (typeof id === "string" ? id.trim() : ""))
+      .filter((id) => id.length > 0);
+  }, [location.state]);
 
   // Load cart items
   useEffect(() => {
@@ -83,7 +92,30 @@ export function CheckoutPage() {
 
       try {
         const response = await getCartItems();
-        setCartItems(response.items || []);
+        const apiItems: CartItem[] = response.items || [];
+        if (selectedProductIds.length > 0) {
+          const filtered = apiItems.filter((item) =>
+            selectedProductIds.includes(item.productId)
+          );
+
+          if (filtered.length === 0) {
+            toast.error(
+              "Các sản phẩm đã chọn không còn trong giỏ hàng, vui lòng chọn lại"
+            );
+            navigate("/cart");
+            return;
+          }
+
+          if (filtered.length < selectedProductIds.length) {
+            toast.info(
+              "Một số sản phẩm đã bị xóa khỏi giỏ hàng, chỉ giữ sản phẩm còn lại"
+            );
+          }
+
+          setCartItems(filtered);
+        } else {
+          setCartItems(apiItems);
+        }
       } catch (err) {
         console.error("[CheckoutPage] Error loading cart:", err);
         toast.error("Không thể tải giỏ hàng");
@@ -93,7 +125,7 @@ export function CheckoutPage() {
     };
 
     loadCartItems();
-  }, [authChecked, isLoggedIn]);
+  }, [authChecked, isLoggedIn, navigate, selectedProductIds]);
 
   useEffect(() => {
     if (user?.name) {
@@ -164,7 +196,7 @@ export function CheckoutPage() {
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const shipping = 50000;
+  const shipping = cartItems.length > 0 ? 50000 : 0;
   const total = subtotal + shipping;
   const selectedSavedAddress = savedAddresses.find(
     (addr) => String(addr.address_id) === addressSelection
@@ -216,6 +248,11 @@ export function CheckoutPage() {
       }
     } else if (!selectedSavedAddress) {
       toast.error("Vui lòng chọn địa chỉ giao hàng");
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      toast.error("Không có sản phẩm nào để đặt hàng");
       return;
     }
 
@@ -687,7 +724,7 @@ export function CheckoutPage() {
                       type="button"
                       variant="outline"
                       className="w-full border-primary/20 hover:bg-primary/5"
-                      onClick={() => navigate("/orders")}
+                      onClick={() => navigate("/cart")}
                       style={{ fontFamily: "Montserrat, sans-serif" }}
                     >
                       Quay Lại Giỏ Hàng

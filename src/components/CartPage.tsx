@@ -9,10 +9,17 @@
  * - Price calculations
  */
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react";
+import {
+  Trash2,
+  Plus,
+  Minus,
+  ShoppingBag,
+  ArrowRight,
+  CheckSquare,
+} from "lucide-react";
 import { useCart } from "../contexts/CartContext";
 import { useApp } from "../contexts/AppContext";
 import {
@@ -24,6 +31,7 @@ import {
 import { Button } from "./ui/button";
 import { Card, CardContent } from "./ui/card";
 import { Input } from "./ui/input";
+import { Checkbox } from "./ui/checkbox";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { toast } from "sonner";
 import heroImg from "../assets/profile/Mù Cang Chải-363.jpg";
@@ -46,9 +54,11 @@ export function CartPage() {
   const [editingQuantity, setEditingQuantity] = useState<{
     [productId: string]: string;
   }>({});
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
   // Debounce timers for quantity input - 1000ms (1 second)
   const debounceTimers = useRef<{ [productId: string]: NodeJS.Timeout }>({});
+  const selectionInitializedRef = useRef(false);
 
   // Load cart on mount - ONLY after auth is checked
   useEffect(() => {
@@ -83,6 +93,40 @@ export function CartPage() {
       );
     };
   }, []);
+
+  // Sync selected items with cart contents (default select all on first load)
+  useEffect(() => {
+    setSelectedItems((prev) => {
+      if (cartItems.length === 0) {
+        selectionInitializedRef.current = false;
+        return new Set();
+      }
+
+      const next = new Set<string>();
+      cartItems.forEach((item) => {
+        if (prev.has(item.productId)) {
+          next.add(item.productId);
+        }
+      });
+
+      const hasNewItems = cartItems.some((item) => !prev.has(item.productId));
+
+      if (!selectionInitializedRef.current || hasNewItems) {
+        cartItems.forEach((item) => {
+          if (!prev.has(item.productId)) {
+            next.add(item.productId);
+          }
+        });
+      }
+
+      if (!selectionInitializedRef.current && next.size === 0) {
+        cartItems.forEach((item) => next.add(item.productId));
+      }
+
+      selectionInitializedRef.current = true;
+      return next;
+    });
+  }, [cartItems]);
 
   // Handle manual quantity input with 1000ms debounce
   const handleQuantityChange = (productId: string, value: string) => {
@@ -317,6 +361,56 @@ export function CartPage() {
     }).format(price);
   };
 
+  const selectedCartItems = useMemo(
+    () => cartItems.filter((item) => selectedItems.has(item.productId)),
+    [cartItems, selectedItems]
+  );
+  const selectedTotalItems = selectedCartItems.reduce(
+    (sum, item) => sum + item.quantity,
+    0
+  );
+  const selectedTotalPrice = selectedCartItems.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+  const allSelected =
+    cartItems.length > 0 && selectedItems.size === cartItems.length;
+  const partiallySelected =
+    selectedItems.size > 0 && selectedItems.size < cartItems.length;
+
+  const handleSelectItem = (productId: string, checked: boolean) => {
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(productId);
+      } else {
+        next.delete(productId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedItems(new Set(cartItems.map((item) => item.productId)));
+    } else {
+      setSelectedItems(new Set());
+    }
+  };
+
+  const handleProceedToCheckout = () => {
+    if (selectedCartItems.length === 0) {
+      toast.error("Vui lòng chọn ít nhất một sản phẩm");
+      return;
+    }
+
+    navigate("/checkout", {
+      state: {
+        selectedProductIds: selectedCartItems.map((item) => item.productId),
+      },
+    });
+  };
+
   // Empty cart state
   if (!isLoading && cartItems.length === 0) {
     return (
@@ -413,10 +507,17 @@ export function CartPage() {
 
       <div className="container mx-auto px-6 py-12">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold">
-            Giỏ Hàng ({totalItems} sản phẩm)
-          </h1>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-4xl font-bold">
+              Giỏ Hàng ({totalItems} sản phẩm)
+            </h1>
+            {cartItems.length > 0 && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Đã chọn {selectedCartItems.length} / {cartItems.length} sản phẩm
+              </p>
+            )}
+          </div>
 
           {cartItems.length > 0 && (
             <Button
@@ -429,6 +530,42 @@ export function CartPage() {
             </Button>
           )}
         </div>
+
+        {cartItems.length > 0 && (
+          <div className="mb-6">
+            <div className="flex items-center gap-4 p-4 rounded-2xl border border-primary/30 bg-primary/5 shadow-sm">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="select-all"
+                  checked={
+                    allSelected
+                      ? true
+                      : partiallySelected
+                      ? "indeterminate"
+                      : false
+                  }
+                  onCheckedChange={(checked: boolean | "indeterminate") =>
+                    handleSelectAll(checked === true)
+                  }
+                  className="mt-1"
+                />
+                <CheckSquare className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <label
+                  htmlFor="select-all"
+                  className="font-semibold text-primary cursor-pointer"
+                >
+                  Chọn tất cả sản phẩm
+                </label>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Đánh dấu nhanh toàn bộ sản phẩm để thanh toán chỉ với một lần
+                  nhấn
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Cart Items */}
@@ -453,109 +590,127 @@ export function CartPage() {
                   >
                     <Card className="border-border/50 shadow-md hover:shadow-lg transition-shadow">
                       <CardContent className="p-6">
-                        <div className="flex gap-6">
-                          {/* Product Image */}
-                          <div className="w-28 h-28 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50">
-                            <ImageWithFallback
-                              src={item.image}
-                              alt={item.productName}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-
-                          {/* Product Info */}
-                          <div className="flex-1">
-                            <h3 className="mb-2 text-lg">{item.productName}</h3>
-                            <p className="text-xl font-semibold text-primary mb-3">
-                              {formatPrice(item.price)}
-                            </p>
-                            {itemStock !== null && (
-                              <p
-                                className={`text-sm ${
-                                  isOutOfStock
-                                    ? "text-destructive"
-                                    : "text-muted-foreground"
-                                }`}
-                              >
-                                {isOutOfStock
-                                  ? "Sản phẩm đã hết hàng"
-                                  : `Tồn kho: ${itemStock} sản phẩm`}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Quantity Controls & Remove */}
-                          <div className="flex flex-col items-end gap-4">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() => handleRemoveItem(item.productId)}
-                              disabled={updatingItems.has(item.productId)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-
-                            <div className="flex items-center gap-2 border rounded-lg bg-white shadow-sm">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-10 w-10 hover:bg-primary/5"
-                                onClick={() => handleDecrement(item.productId)}
-                                disabled={updatingItems.has(item.productId)}
-                              >
-                                <Minus className="h-4 w-4" />
-                              </Button>
-
-                              <Input
-                                type="text"
-                                inputMode="numeric"
-                                value={
-                                  editingQuantity[item.productId] !== undefined
-                                    ? editingQuantity[item.productId]
-                                    : item.quantity
-                                }
-                                onChange={(e) =>
-                                  handleQuantityChange(
-                                    item.productId,
-                                    e.target.value
-                                  )
-                                }
-                                disabled={updatingItems.has(item.productId)}
-                                className="w-10 h-10 text-center font-medium border-0 p-0"
+                        <div className="flex gap-4">
+                          <Checkbox
+                            checked={selectedItems.has(item.productId)}
+                            onCheckedChange={(
+                              checked: boolean | "indeterminate"
+                            ) =>
+                              handleSelectItem(item.productId, checked === true)
+                            }
+                            className="mt-2"
+                          />
+                          <div className="flex gap-6 flex-1">
+                            {/* Product Image */}
+                            <div className="w-28 h-28 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-gray-100 to-gray-50">
+                              <ImageWithFallback
+                                src={item.image}
+                                alt={item.productName}
+                                className="w-full h-full object-cover"
                               />
+                            </div>
 
+                            {/* Product Info */}
+                            <div className="flex-1">
+                              <h3 className="mb-2 text-lg">
+                                {item.productName}
+                              </h3>
+                              <p className="text-xl font-semibold text-primary mb-3">
+                                {formatPrice(item.price)}
+                              </p>
+                              {itemStock !== null && (
+                                <p
+                                  className={`text-sm ${
+                                    isOutOfStock
+                                      ? "text-destructive"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {isOutOfStock
+                                    ? "Sản phẩm đã hết hàng"
+                                    : `Tồn kho: ${itemStock} sản phẩm`}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Quantity Controls & Remove */}
+                            <div className="flex flex-col items-end gap-4">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-10 w-10 hover:bg-primary/5"
-                                onClick={() => handleIncrement(item.productId)}
-                                disabled={
-                                  updatingItems.has(item.productId) ||
-                                  isOutOfStock ||
-                                  isAtStockLimit
-                                }
+                                className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => handleRemoveItem(item.productId)}
+                                disabled={updatingItems.has(item.productId)}
                               >
-                                <Plus className="h-4 w-4" />
+                                <Trash2 className="h-4 w-4" />
                               </Button>
-                            </div>
-                            {itemStock !== null && (
-                              <p
-                                className={`text-xs text-right ${
-                                  isOutOfStock
-                                    ? "text-destructive"
+
+                              <div className="flex items-center gap-2 border rounded-lg bg-white shadow-sm">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-10 w-10 hover:bg-primary/5"
+                                  onClick={() =>
+                                    handleDecrement(item.productId)
+                                  }
+                                  disabled={updatingItems.has(item.productId)}
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+
+                                <Input
+                                  type="text"
+                                  inputMode="numeric"
+                                  value={
+                                    editingQuantity[item.productId] !==
+                                    undefined
+                                      ? editingQuantity[item.productId]
+                                      : item.quantity
+                                  }
+                                  onChange={(e) =>
+                                    handleQuantityChange(
+                                      item.productId,
+                                      e.target.value
+                                    )
+                                  }
+                                  disabled={updatingItems.has(item.productId)}
+                                  className="w-10 h-10 text-center font-medium border-0 p-0"
+                                />
+
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-10 w-10 hover:bg-primary/5"
+                                  onClick={() =>
+                                    handleIncrement(item.productId)
+                                  }
+                                  disabled={
+                                    updatingItems.has(item.productId) ||
+                                    isOutOfStock ||
+                                    isAtStockLimit
+                                  }
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </div>
+                              {itemStock !== null && (
+                                <p
+                                  className={`text-xs text-right ${
+                                    isOutOfStock
+                                      ? "text-destructive"
+                                      : isAtStockLimit
+                                      ? "text-amber-600"
+                                      : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {isOutOfStock
+                                    ? "Vui lòng xóa sản phẩm này"
                                     : isAtStockLimit
-                                    ? "text-amber-600"
-                                    : "text-muted-foreground"
-                                }`}
-                              >
-                                {isOutOfStock
-                                  ? "Vui lòng xóa sản phẩm này"
-                                  : isAtStockLimit
-                                  ? "Đã đạt số lượng tối đa"
-                                  : `Số lượng giỏ: ${item.quantity}`}
-                              </p>
-                            )}
+                                    ? "Đã đạt số lượng tối đa"
+                                    : `Số lượng giỏ: ${item.quantity}`}
+                                </p>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -575,25 +730,28 @@ export function CartPage() {
                   <div className="flex justify-between text-base">
                     <span className="text-muted-foreground">Tạm tính:</span>
                     <span className="font-medium">
-                      {formatPrice(totalPrice)}
+                      {formatPrice(selectedTotalPrice)}
                     </span>
                   </div>
                   <div className="flex justify-between text-base">
                     <span className="text-muted-foreground">Số lượng:</span>
-                    <span className="font-medium">{totalItems} sản phẩm</span>
+                    <span className="font-medium">
+                      {selectedTotalItems} sản phẩm
+                    </span>
                   </div>
                   <div className="border-t pt-4">
                     <div className="flex justify-between text-xl">
                       <span className="font-semibold">Tổng cộng:</span>
                       <span className="font-bold text-primary">
-                        {formatPrice(totalPrice)}
+                        {formatPrice(selectedTotalPrice)}
                       </span>
                     </div>
                   </div>
                 </div>
                 <Button
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-6 text-lg shadow-lg mb-3"
-                  onClick={() => navigate("/orders")}
+                  onClick={handleProceedToCheckout}
+                  disabled={selectedCartItems.length === 0}
                 >
                   Tiến Hành Thanh Toán
                 </Button>
