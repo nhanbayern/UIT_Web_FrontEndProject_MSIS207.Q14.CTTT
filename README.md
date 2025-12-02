@@ -1,6 +1,6 @@
 # Ruou Ong Tu Frontend
 
-React + Vite single-page application (SPA) for the Rượu Ong Tú commerce platform. The app renders the full customer journey — product discovery, onboarding, cart, checkout, order tracking, and MoMo/COD payments — by consuming the Express/Sequelize backend over REST.
+React + Vite single-page application (SPA) for the Rượu Ông Tư e-commerce platform. The app renders the full customer journey — product discovery, onboarding, cart, checkout, order tracking, and MoMo/COD payments — by consuming the Express/Sequelize backend over REST.
 
 ## Feature Highlights
 
