@@ -365,6 +365,20 @@ export interface CreateOrderPayload {
   payment_method: "Cash" | "OnlineBanking";
 }
 
+export interface CreateMomoPaymentResponse {
+  success: boolean;
+  order_id?: string;
+  payUrl?: string;
+  paymentUrl?: string;
+  amount?: number;
+  data?: {
+    payUrl?: string;
+    paymentUrl?: string;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
+
 export async function createOrder(payload: CreateOrderPayload) {
   const response = await apiFetch("/orders/create", {
     method: "POST",
@@ -388,6 +402,26 @@ export async function getOrderDetail(order_id: number) {
   const response = await apiFetch(`/orders/${order_id}`);
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
+}
+
+export async function createMomoPayment(
+  orderCodes: string[]
+): Promise<CreateMomoPaymentResponse> {
+  if (!Array.isArray(orderCodes) || orderCodes.length === 0) {
+    throw new Error("order_codes is required để tạo thanh toán MoMo");
+  }
+
+  const response = await apiFetch("/payment/momo/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ order_codes: orderCodes }),
+  });
+
+  const json = await response.json();
+  if (!response.ok) {
+    throw json;
+  }
+  return json;
 }
 
 export async function updateOrderStatus(

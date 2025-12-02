@@ -25,7 +25,7 @@ import { toast } from "sonner";
 import { useApp } from "../contexts/AppContext";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { getCartItems } from "../services/cart.service";
-import { createOrder, getAddresses } from "../services/api";
+import { createOrder, getAddresses, createMomoPayment } from "../services/api";
 import type { CreateOrderPayload } from "../services/api";
 import { CartItem } from "../types/cart.types";
 import heroTaVan from "../assets/herotavan.jpg";
@@ -51,6 +51,7 @@ export function CheckoutPage() {
   const accountPhone = (user?.phone || "").trim();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "ewallet">(
     "cash"
   );
@@ -254,6 +255,11 @@ export function CheckoutPage() {
       return;
     }
 
+    if (submitting) {
+      return;
+    }
+    setSubmitting(true);
+
     try {
       // Prepare order payload
       const items = cartItems.map((item) => ({
@@ -283,10 +289,70 @@ export function CheckoutPage() {
       // Call createOrder API
       const result = await createOrder(payload);
       console.log("[CheckoutPage] Order created:", result);
+      const normalizedOrder =
+        result?.order || result?.data?.order || result?.data || result;
+      const orderCode =
+        result?.order_code ||
+        result?.orderCode ||
+        normalizedOrder?.order_code ||
+        normalizedOrder?.orderCode ||
+        normalizedOrder?.code ||
+        result?.data?.order_code ||
+        result?.data?.orderCode ||
+        null;
+      const orderId =
+        normalizedOrder?.order_id ||
+        normalizedOrder?.orderId ||
+        result?.order_id ||
+        result?.orderId ||
+        result?.data?.order_id ||
+        result?.data?.orderId ||
+        null;
+      const orderLabel = orderCode || orderId || "mới";
 
-      toast.success(`Đặt hàng thành công! Mã đơn: ${result.order_code}`);
+      if (paymentMethod === "ewallet") {
+        if (!orderCode) {
+          toast.error(
+            "Không tìm thấy mã đơn hàng để tạo thanh toán MoMo. Vui lòng thử lại."
+          );
+          setSubmitting(false);
+          return;
+        }
 
-      // Clear cart and navigate to orders
+        toast.success(`Đặt hàng thành công! Mã đơn: ${orderLabel}`);
+        toast.info("Đang chuyển hướng đến cổng thanh toán MoMo...");
+        try {
+          const momoResponse = await createMomoPayment([orderCode]);
+          const payUrl =
+            momoResponse?.payUrl ||
+            momoResponse?.paymentUrl ||
+            momoResponse?.deeplink ||
+            momoResponse?.data?.payUrl ||
+            momoResponse?.data?.paymentUrl ||
+            momoResponse?.data?.deeplink;
+
+          if (!payUrl) {
+            throw new Error(
+              "Không nhận được liên kết thanh toán từ MoMo. Vui lòng thử lại."
+            );
+          }
+
+          window.location.href = payUrl;
+        } catch (momoError: any) {
+          console.error("[CheckoutPage] MoMo payment error:", momoError);
+          const momoMessage =
+            momoError?.message ||
+            momoError?.errorMessage ||
+            momoError?.error ||
+            "Không thể tạo thanh toán MoMo. Vui lòng thử lại.";
+          toast.error(momoMessage);
+          setSubmitting(false);
+        }
+        return;
+      }
+
+      toast.success(`Đặt hàng thành công! Mã đơn: ${orderLabel}`);
+      setSubmitting(false);
       setTimeout(() => {
         navigate("/manageorders");
       }, 1500);
@@ -308,6 +374,7 @@ export function CheckoutPage() {
       } else {
         toast.error(errorMessage);
       }
+      setSubmitting(false);
     }
   };
 
@@ -706,6 +773,7 @@ export function CheckoutPage() {
                     {/* Submit Button */}
                     <Button
                       type="submit"
+                      disabled={submitting}
                       className="w-full text-white py-6 text-lg shadow-lg hover:shadow-xl transition-all"
                       style={{
                         fontFamily: "Montserrat, sans-serif",
@@ -713,7 +781,9 @@ export function CheckoutPage() {
                           "linear-gradient(to right, #22581F, #2a6b26)",
                       }}
                     >
-                      {paymentMethod === "cash"
+                      {submitting
+                        ? "Đang xử lý..."
+                        : paymentMethod === "cash"
                         ? "Đặt Hàng"
                         : "Thanh Toán Ngay"}
                     </Button>
