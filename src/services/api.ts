@@ -281,7 +281,7 @@ export async function updateAddress(address_id: number, payload: any) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw await response.json();
+  if (!response.ok) throw await response.jso  n();
   return response.json();
 }
 
