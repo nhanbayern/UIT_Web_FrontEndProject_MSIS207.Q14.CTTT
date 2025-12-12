@@ -53,6 +53,7 @@ export function CheckoutPage() {
   const accountPhone = (user?.phone || "").trim();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [customerName, setCustomerName] = useState(user?.name || "");
   const [phoneOption, setPhoneOption] = useState<"account" | "custom">(
     accountPhone ? "account" : "custom"
@@ -675,9 +676,7 @@ export function CheckoutPage() {
                           "linear-gradient(to right, #22581F, #2a6b26)",
                       }}
                     >
-                      {paymentMethod === "cash"
-                        ? "Đặt Hàng"
-                        : "Thanh Toán Ngay"}
+                      {submitting ? "Đang xử lý..." : "Đặt Hàng"}
                     </Button>
 
                     <Button

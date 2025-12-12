@@ -82,7 +82,6 @@ export function ManageOrdersPage() {
 
     const paymentMethodMap: { [key: string]: Order["paymentMethod"] } = {
       Cash: "cash",
-      OnlineBanking: "ewallet",
     };
 
     const items =
@@ -351,9 +350,7 @@ export function ManageOrdersPage() {
                 >
                   <CreditCard className="h-4 w-4 text-primary" />
                   <span className="font-medium">Thanh toán:</span>
-                  <span className="text-muted-foreground">
-                    {order.paymentMethod === "cash" ? "COD" : "Ví điện tử"}
-                  </span>
+                  <span className="text-muted-foreground">COD</span>
                 </div>
               </div>
               <div className="space-y-2">

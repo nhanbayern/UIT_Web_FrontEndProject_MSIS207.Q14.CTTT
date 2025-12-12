@@ -34,10 +34,7 @@ interface AppContextType {
 
   // Orders
   orders: Order[];
-  placeOrder: (
-    paymentMethod: "cash" | "ewallet",
-    shippingAddress: string
-  ) => void;
+  placeOrder: (paymentMethod: "cash", shippingAddress: string) => void;
 
   // Products
   products: Product[];
@@ -315,7 +312,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const placeOrder = (
-    paymentMethod: "cash" | "ewallet",
+    paymentMethod: "cash",
     shippingAddress: string
   ) => {
     const subtotal = cartItems.reduce(
