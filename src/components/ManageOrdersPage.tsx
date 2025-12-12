@@ -472,7 +472,7 @@ export function ManageOrdersPage() {
       <section className="relative hero-bleed">
         <div className="relative w-full h-96 md:h-[80vh] overflow-hidden">
           <ImageWithFallback
-            src="/src/assets/herotavan.jpg"
+            src="../assets/herotavan.jpg"
             alt="Quản Lý Đơn Hàng"
             className="vungmien-backgroundimage"
           />
