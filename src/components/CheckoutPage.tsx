@@ -16,7 +16,7 @@ import {
 import {
   CreditCard,
   Banknote,
-  Wallet,
+
   MapPin,
   User,
   Phone,
@@ -53,9 +53,6 @@ export function CheckoutPage() {
   const accountPhone = (user?.phone || "").trim();
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "ewallet">(
-    "cash"
-  );
   const [customerName, setCustomerName] = useState(user?.name || "");
   const [phoneOption, setPhoneOption] = useState<"account" | "custom">(
     accountPhone ? "account" : "custom"
@@ -265,7 +262,7 @@ export function CheckoutPage() {
 
       const payload: CreateOrderPayload = {
         items,
-        payment_method: paymentMethod === "cash" ? "Cash" : "OnlineBanking",
+        payment_method: "Cash",
         recipient_name: customerName.trim(),
         recipient_phone: effectivePhone,
         ...(useNewAddress
@@ -574,7 +571,7 @@ export function CheckoutPage() {
                   </CardContent>
                 </Card>
 
-                {/* Payment Method */}
+                {/* Payment Method - COD Only */}
                 <Card className="border-border/50 shadow-lg">
                   <CardHeader>
                     <CardTitle
@@ -586,54 +583,17 @@ export function CheckoutPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <RadioGroup
-                      value={paymentMethod}
-                      onValueChange={(value) =>
-                        setPaymentMethod(value as "cash" | "ewallet")
-                      }
-                    >
-                      <div className="space-y-3">
-                        {/* Cash on Delivery */}
-                        <label
-                          htmlFor="cash"
-                          className={`flex items-center space-x-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                            paymentMethod === "cash"
-                              ? "border-primary bg-primary/5"
-                              : "border-border hover:border-primary/50"
-                          }`}
-                        >
-                          <RadioGroupItem value="cash" id="cash" />
-                          <Banknote className="h-6 w-6 text-primary" />
-                          <div className="flex-1">
-                            <p className="font-semibold">
-                              Thanh toán khi nhận hàng (COD)
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              Thanh toán bằng tiền mặt khi nhận hàng
-                            </p>
-                          </div>
-                        </label>
-
-                        {/* E-Wallet */}
-                        <label
-                          htmlFor="ewallet"
-                          className={`flex items-center space-x-4 p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                            paymentMethod === "ewallet"
-                              ? "border-primary bg-primary/5"
-                              : "border-border hover:border-primary/50"
-                          }`}
-                        >
-                          <RadioGroupItem value="ewallet" id="ewallet" />
-                          <Wallet className="h-6 w-6 text-primary" />
-                          <div className="flex-1">
-                            <p className="font-semibold">Ví điện tử</p>
-                            <p className="text-sm text-muted-foreground">
-                              Thanh toán qua MoMo, ZaloPay, VNPay
-                            </p>
-                          </div>
-                        </label>
+                    <div className="flex items-center space-x-4 p-4 rounded-lg border-2 border-primary bg-primary/5">
+                      <Banknote className="h-6 w-6 text-primary" />
+                      <div className="flex-1">
+                        <p className="font-semibold">
+                          Thanh toán khi nhận hàng (COD)
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Thanh toán bằng tiền mặt khi nhận hàng
+                        </p>
                       </div>
-                    </RadioGroup>
+                    </div>
                   </CardContent>
                 </Card>
               </div>

@@ -51,7 +51,7 @@ export interface Order {
   items: CartItem[];
   total: number;
   status: "processing" | "shipping" | "delivered" | "cancelled";
-  paymentMethod: "cash" | "ewallet";
+  paymentMethod: "cash";
   date: string;
   shippingAddress: Address;
   customerName: string;
