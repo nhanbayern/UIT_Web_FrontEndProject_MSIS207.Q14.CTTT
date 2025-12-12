@@ -669,7 +669,8 @@ export function CheckoutPage() {
                     {/* Submit Button */}
                     <Button
                       type="submit"
-                      className="w-full text-white py-6 text-lg shadow-lg hover:shadow-xl transition-all"
+                      disabled={submitting}
+                      className="w-full text-white py-6 text-lg shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{
                         fontFamily: "Montserrat, sans-serif",
                         background:
