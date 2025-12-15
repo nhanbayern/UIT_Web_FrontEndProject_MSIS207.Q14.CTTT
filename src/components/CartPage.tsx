@@ -753,7 +753,7 @@ export function CartPage() {
                   onClick={handleProceedToCheckout}
                   disabled={selectedCartItems.length === 0}
                 >
-                  Tiến Hành Thanh Toán
+                  Tiến Hành Đặt Hàng
                 </Button>
                 <Button
                   variant="outline"
