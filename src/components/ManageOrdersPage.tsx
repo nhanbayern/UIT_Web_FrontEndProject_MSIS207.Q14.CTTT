@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Order } from "../types";
-import { getOrders } from "../services/api";
+import { getOrders, cancelOrder } from "../services/api";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
@@ -71,6 +71,8 @@ export function ManageOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Transform backend order data to frontend Order type
   const transformOrderData = (backendOrder: any): Order => {
@@ -78,6 +80,7 @@ export function ManageOrdersPage() {
       Preparing: "processing",
       "On delivery": "shipping",
       Delivered: "delivered",
+      Cancelled: "cancelled",
     };
 
     const paymentMethodMap: { [key: string]: Order["paymentMethod"] } = {
@@ -178,6 +181,53 @@ export function ManageOrdersPage() {
 
     fetchOrders();
   }, [navigate]);
+
+  /**
+   * Handle order cancellation
+   * Only allowed when order status is "processing" (backend: "Preparing")
+   */
+  const handleCancelOrder = async (orderId: string, orderCode?: string) => {
+    const displayCode = orderCode || orderId;
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Bạn có chắc chắn muốn hủy đơn hàng ${displayCode}?\n\nLưu ý: Chỉ có thể hủy đơn hàng đang trong trạng thái "Đang xử lý".`
+    );
+    
+    if (!confirmed) return;
+
+    try {
+      setCancellingOrderId(orderId);
+      setError(null);
+      setSuccessMessage(null);
+      
+      await cancelOrder(orderId);
+      
+      // Update local state - change order status to cancelled
+      setOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order.id === orderId
+            ? { ...order, status: "cancelled" as const }
+            : order
+        )
+      );
+      
+      setSuccessMessage(`Đơn hàng ${displayCode} đã được hủy thành công.`);
+      
+      // Auto-clear success message after 5 seconds
+      setTimeout(() => setSuccessMessage(null), 5000);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Không thể hủy đơn hàng";
+      
+      setError(errorMessage);
+      
+      // Auto-clear error message after 5 seconds
+      setTimeout(() => setError(null), 5000);
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -442,7 +492,7 @@ export function ManageOrdersPage() {
 
             <Separator />
 
-            {/* Total */}
+            {/* Total and Actions */}
             <div className="flex items-center justify-between">
               <span style={{ fontSize: "1.125rem" }} className="font-semibold">
                 Tổng cộng:
@@ -454,6 +504,42 @@ export function ManageOrdersPage() {
                 {formatPrice(order.total)}
               </span>
             </div>
+
+            {/* Cancel Order Button - Only visible for processing orders */}
+            {order.status === "processing" && (
+              <div className="pt-4 border-t border-gray-100">
+                <button
+                  onClick={() => handleCancelOrder(order.id, order.orderCode)}
+                  disabled={cancellingOrderId === order.id}
+                  className={`
+                    w-full sm:w-auto px-6 py-2.5 rounded-lg font-medium
+                    flex items-center justify-center gap-2
+                    transition-all duration-200
+                    ${
+                      cancellingOrderId === order.id
+                        ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        : "bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700 border border-red-200"
+                    }
+                  `}
+                  title="Chỉ có thể hủy đơn hàng đang trong trạng thái 'Đang xử lý'"
+                >
+                  {cancellingOrderId === order.id ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      Đang hủy...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="h-4 w-4" />
+                      Hủy đơn hàng
+                    </>
+                  )}
+                </button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Bạn chỉ có thể hủy đơn hàng khi đang ở trạng thái "Đang xử lý"
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
@@ -498,10 +584,35 @@ export function ManageOrdersPage() {
 
       {/* Statistics & Orders Section */}
       <div className="max-w-6xl mx-auto px-6 py-12">
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <p className="text-green-700">{successMessage}</p>
+            </div>
+            <button
+              onClick={() => setSuccessMessage(null)}
+              className="text-green-600 hover:text-green-800"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+
         {/* Error State */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-700">{error}</p>
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-red-600" />
+              <p className="text-red-700">{error}</p>
+            </div>
+            <button
+              onClick={() => setError(null)}
+              className="text-red-600 hover:text-red-800"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
           </div>
         )}
 

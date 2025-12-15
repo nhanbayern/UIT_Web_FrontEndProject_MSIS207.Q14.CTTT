@@ -384,3 +384,25 @@ export async function updatePaymentStatus(
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
+
+/**
+ * Cancel an order (only allowed when order status is "Preparing")
+ * @param order_id - The ID of the order to cancel
+ * @returns Promise with success message or error
+ */
+export async function cancelOrder(order_id: string | number) {
+  const response = await apiFetch(`/orders/${order_id}/cancel`, {
+    method: "PATCH",
+  });
+  
+  const data = await response.json();
+  
+  if (!response.ok) {
+    // Throw error with backend message for proper error handling
+    const error = new Error(data.message || `HTTP error! status: ${response.status}`);
+    (error as any).code = data.error;
+    throw error;
+  }
+  
+  return data;
+}
