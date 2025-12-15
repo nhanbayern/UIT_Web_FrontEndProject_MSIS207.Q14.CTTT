@@ -18,7 +18,7 @@ import {
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { motion } from "motion/react";
 import { Separator } from "./ui/separator";
-
+import heroImg from "../assets/profile/Mù Cang Chải-363.jpg";
 const defaultShippingAddress: Order["shippingAddress"] = {
   address_line: "N/A",
   ward: "",
@@ -472,7 +472,7 @@ export function ManageOrdersPage() {
       <section className="relative hero-bleed">
         <div className="relative w-full h-96 md:h-[80vh] overflow-hidden">
           <ImageWithFallback
-            src="../assets/herotavan.jpg"
+            src={heroImg}
             alt="Quản Lý Đơn Hàng"
             className="vungmien-backgroundimage"
           />
