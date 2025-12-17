@@ -92,7 +92,7 @@ async function apiFetch<T>(
  */
 export async function getCartItems(): Promise<CartAPIResponse> {
   try {
-    return await apiFetch<CartAPIResponse>("/user/cartitems");
+    return await apiFetch<CartAPIResponse>("/customer/cartitems");
   } catch (error) {
     console.error("[CartService] Error fetching cart items:", error);
     throw error;
@@ -107,7 +107,7 @@ export async function addToCart(
   request: AddToCartRequest
 ): Promise<AddToCartResponse> {
   try {
-    return await apiFetch<AddToCartResponse>("/user/insertitems", {
+    return await apiFetch<AddToCartResponse>("/customer/insertitems", {
       method: "POST",
       body: JSON.stringify(request),
     });
@@ -122,7 +122,7 @@ export async function addToCart(
  */
 export async function removeFromCart(productId: string): Promise<void> {
   try {
-    await apiFetch<void>(`/user/cartitems/${productId}`, {
+    await apiFetch<void>(`/customer/cartitems/${productId}`, {
       method: "DELETE",
     });
   } catch (error) {
@@ -136,7 +136,7 @@ export async function removeFromCart(productId: string): Promise<void> {
  */
 export async function clearAllCartItems(): Promise<void> {
   try {
-    await apiFetch<void>("/user/cartitems", {
+    await apiFetch<void>("/customer/cartitems", {
       method: "DELETE",
     });
   } catch (error) {
@@ -153,7 +153,7 @@ export async function updateCartItemQuantity(
   quantity: number
 ): Promise<AddToCartResponse> {
   try {
-    return await apiFetch<AddToCartResponse>(`/user/cartitems/${productId}`, {
+    return await apiFetch<AddToCartResponse>(`/customer/cartitems/${productId}`, {
       method: "PUT",
       body: JSON.stringify({ quantity }),
     });
@@ -182,7 +182,7 @@ export async function incrementByOne(
 ): Promise<AddToCartResponse> {
   try {
     return await apiFetch<AddToCartResponse>(
-      `/user/incrementby1/${productId}`,
+      `/customer/incrementby1/${productId}`,
       {
         method: "POST",
       }
@@ -201,7 +201,7 @@ export async function decrementByOne(
 ): Promise<AddToCartResponse> {
   try {
     return await apiFetch<AddToCartResponse>(
-      `/user/decrementby1/${productId}`,
+      `/customer/decrementby1/${productId}`,
       {
         method: "POST",
       }

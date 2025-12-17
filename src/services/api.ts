@@ -234,7 +234,7 @@ export async function updateUserProfile(payload: {
     body = JSON.stringify(payload);
   }
 
-  const response = await apiFetch("/user/update", {
+  const response = await apiFetch("/customer/update", {
     method: "POST",
     body,
   });
@@ -246,9 +246,9 @@ export async function updateUserProfile(payload: {
   return response.json();
 }
 
-/* User addresses */
+/* Customer addresses */
 export async function getAddresses() {
-  const response = await apiFetch("/user/address");
+  const response = await apiFetch("/customer/addresses");
   if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
   return response.json();
 }
@@ -260,7 +260,7 @@ export async function createAddress(payload: {
   province?: string;
   is_default?: number;
 }) {
-  const response = await apiFetch("/user/address/create", {
+  const response = await apiFetch("/customer/addresses", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -270,7 +270,7 @@ export async function createAddress(payload: {
 }
 
 export async function deleteAddress(address_id: number) {
-  const response = await apiFetch(`/user/address/${address_id}`, {
+  const response = await apiFetch(`/customer/addresses/${address_id}`, {
     method: "DELETE",
   });
   if (!response.ok) throw await response.json();
@@ -278,8 +278,8 @@ export async function deleteAddress(address_id: number) {
 }
 
 export async function updateAddress(address_id: number, payload: any) {
-  const response = await apiFetch(`/user/address/update/${address_id}`, {
-    method: "POST",
+  const response = await apiFetch(`/customer/addresses/${address_id}`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
