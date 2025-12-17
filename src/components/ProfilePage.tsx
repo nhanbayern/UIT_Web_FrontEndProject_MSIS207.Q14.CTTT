@@ -28,6 +28,8 @@ export function ProfilePage() {
     phone: user.phone,
     avatar: user.avatar || "",
   });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   const [addresses, setAddresses] = useState<any[]>([]);
   const [addrForm, setAddrForm] = useState({
@@ -56,17 +58,67 @@ export function ProfilePage() {
     })();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error("Chỉ chấp nhận file ảnh (JPEG, PNG, GIF, WebP)");
+        return;
+      }
+      
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Kích thước file không được vượt quá 5MB");
+        return;
+      }
+      
+      setAvatarFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile({
-      ...user,
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      avatar: formData.avatar,
-    });
-    setIsEditing(false);
-    toast.success("Cập nhật thông tin thành công!");
+    
+    try {
+      const payload: any = {
+        username: formData.name,
+        phone_number: formData.phone,
+      };
+      
+      if (avatarFile) {
+        payload.avatar = avatarFile;
+      }
+      
+      // Call API to update profile
+      const { updateUserProfile } = await import("../services/api");
+      const response = await updateUserProfile(payload);
+      
+      // Update context with new data
+      updateProfile({
+        ...user,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        avatar: response.profileimage || formData.avatar,
+      });
+      
+      setIsEditing(false);
+      setAvatarFile(null);
+      setAvatarPreview(null);
+      toast.success("Cập nhật thông tin thành công!");
+    } catch (error: any) {
+      console.error("Update profile error:", error);
+      toast.error(error.message || "Có lỗi xảy ra khi cập nhật thông tin");
+    }
   };
 
   const handleLogout = () => {
@@ -111,16 +163,29 @@ export function ProfilePage() {
                 <div className="text-center mb-6">
                   <div className="relative inline-block mb-4">
                     <Avatar className="h-24 w-24">
-                      <AvatarImage src={formData.avatar} />
+                      <AvatarImage src={avatarPreview || formData.avatar} />
                       <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
                     </Avatar>
-                    <Button
-                      size="icon"
-                      variant="secondary"
-                      className="absolute bottom-0 right-0 h-8 w-8 rounded-full"
-                    >
-                      <Camera className="h-4 w-4" />
-                    </Button>
+                    {isEditing && (
+                      <>
+                        <input
+                          type="file"
+                          id="avatar-upload"
+                          accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                          className="hidden"
+                          onChange={handleAvatarChange}
+                        />
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          className="absolute bottom-0 right-0 h-8 w-8 rounded-full"
+                          onClick={() => document.getElementById("avatar-upload")?.click()}
+                          type="button"
+                        >
+                          <Camera className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                   <h3 className="mb-1">{user.name}</h3>
                   <p className="text-sm text-muted-foreground">{user.email}</p>

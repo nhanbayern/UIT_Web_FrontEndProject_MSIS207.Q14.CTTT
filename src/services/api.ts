@@ -213,6 +213,53 @@ export async function getProfile() {
   return response.json();
 }
 
+export async function updateUserProfile(payload: {
+  username?: string;
+  phone_number?: string;
+  address?: string;
+  avatar?: File;
+}) {
+  // If avatar is provided, use FormData for multipart upload
+  if (payload.avatar) {
+    const formData = new FormData();
+    if (payload.username) formData.append("username", payload.username);
+    if (payload.phone_number) formData.append("phone_number", payload.phone_number);
+    if (payload.address) formData.append("address", payload.address);
+    formData.append("avatar", payload.avatar);
+
+    // Use raw fetch for FormData (no Content-Type header needed, browser sets it with boundary)
+    const url = `${API_BASE_URL}/user/update`;
+    const headers = new Headers();
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    if (CORS_BASE_ORIGIN) headers.set("X-API-ORIGIN", CORS_BASE_ORIGIN);
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  } else {
+    // JSON payload for no avatar
+    const response = await apiFetch("/user/update", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+  }
+}
+
 /* User addresses */
 export async function getAddresses() {
   const response = await apiFetch("/user/address");
