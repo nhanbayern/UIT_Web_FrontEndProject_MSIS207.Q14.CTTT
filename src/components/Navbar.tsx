@@ -31,13 +31,15 @@ export function Navbar({
     0
   );
 
-  // Detect mobile based on aspect ratio: w/h < 16/9
+  // Detect mobile based on aspect ratio: w/h < 16/10 (1.6)
+  // This ensures 16:10 screens (1.6) and 16:9 screens (1.778) show full navbar
+  // Only narrow screens (like tablets/phones) will show mobile menu
   useEffect(() => {
     function checkAspectRatio() {
       const width = window.innerWidth;
       const height = window.innerHeight;
       const aspectRatio = width / height;
-      const isMobileView = aspectRatio < 16 / 9;
+      const isMobileView = aspectRatio < 1.4; // 16:10 = 1.6, so 1.5 keeps both 16:10 and 16:9 in desktop mode
       setIsMobile(isMobileView);
     }
 
