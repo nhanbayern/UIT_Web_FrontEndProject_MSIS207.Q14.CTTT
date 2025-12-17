@@ -173,7 +173,10 @@ export function ProfilePage() {
                 <div className="text-center mb-6">
                   <div className="relative inline-block mb-4">
                     <Avatar className="h-24 w-24">
-                      <AvatarImage src={avatarPreview || formData.avatar} />
+                      <AvatarImage 
+                        src={avatarPreview || formData.avatar} 
+                        className="object-cover"
+                      />
                       <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
                     </Avatar>
                     {isEditing && (
