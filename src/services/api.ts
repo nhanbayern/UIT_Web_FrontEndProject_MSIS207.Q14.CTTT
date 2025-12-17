@@ -52,7 +52,8 @@ async function doRefresh() {
 async function apiFetch(path: string, init: RequestInit = {}) {
   const url = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
   const headers = new Headers(init.headers || {});
-  if (!headers.has("Content-Type"))
+  // Don't set Content-Type for FormData - browser will set it with boundary
+  if (!headers.has("Content-Type") && !(init.body instanceof FormData))
     headers.set("Content-Type", "application/json");
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
   if (CORS_BASE_ORIGIN && !headers.has("X-API-ORIGIN")) {
@@ -220,44 +221,29 @@ export async function updateUserProfile(payload: {
   avatar?: File;
 }) {
   // If avatar is provided, use FormData for multipart upload
+  let body: FormData | string;
   if (payload.avatar) {
     const formData = new FormData();
     if (payload.username) formData.append("username", payload.username);
     if (payload.phone_number) formData.append("phone_number", payload.phone_number);
     if (payload.address) formData.append("address", payload.address);
     formData.append("avatar", payload.avatar);
-
-    // Use raw fetch for FormData (no Content-Type header needed, browser sets it with boundary)
-    const url = `${API_BASE_URL}/user/update`;
-    const headers = new Headers();
-    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-    if (CORS_BASE_ORIGIN) headers.set("X-API-ORIGIN", CORS_BASE_ORIGIN);
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      credentials: "include",
-      body: formData,
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
-    }
-    return response.json();
+    body = formData;
   } else {
     // JSON payload for no avatar
-    const response = await apiFetch("/user/update", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || `HTTP error! status: ${response.status}`);
-    }
-    return response.json();
+    body = JSON.stringify(payload);
   }
+
+  const response = await apiFetch("/user/update", {
+    method: "POST",
+    body,
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || `HTTP error! status: ${response.status}`);
+  }
+  return response.json();
 }
 
 /* User addresses */
