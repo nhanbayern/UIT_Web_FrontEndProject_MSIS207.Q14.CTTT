@@ -28,6 +28,16 @@ export function ProfilePage() {
     phone: user.phone,
     avatar: user.avatar || "",
   });
+
+  // Sync formData when user changes
+  useEffect(() => {
+    setFormData({
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      avatar: user.avatar || "",
+    });
+  }, [user]);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 

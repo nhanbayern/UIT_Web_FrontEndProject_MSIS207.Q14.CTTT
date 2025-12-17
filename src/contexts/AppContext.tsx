@@ -89,11 +89,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const prof = await api.getProfile();
             if (prof && prof.user) {
               setUser({
-                id: prof.user.user_id || "",
-                name: prof.user.username || "",
+                id: prof.user.customer_id || prof.user.user_id || "",
+                name: prof.user.customername || prof.user.username || "",
                 email: prof.user.email || "",
                 phone: prof.user.phone_number || "",
-                avatar: prof.user.avatar || "",
+                avatar: prof.user.profileimage || prof.user.avatar || "",
               });
             }
             setIsLoggedIn(true);
@@ -246,22 +246,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // prefer profile from login response, otherwise fetch profile
         if (data.user) {
           setUser({
-            id: data.user.user_id || "",
-            name: data.user.username || data.user.name || "",
+            id: data.user.customer_id || data.user.user_id || "",
+            name: data.user.customername || data.user.username || data.user.name || "",
             email: data.user.email || "",
             phone: data.user.phone_number || data.user.phone || "",
-            avatar: data.user.avatar || "",
+            avatar: data.user.profileimage || data.user.avatar || "",
           });
         } else {
           try {
             const prof = await api.getProfile();
             if (prof && prof.user) {
               setUser({
-                id: "",
-                name: prof.user.username || "",
+                id: prof.user.customer_id || prof.user.user_id || "",
+                name: prof.user.customername || prof.user.username || "",
                 email: prof.user.email || "",
                 phone: prof.user.phone_number || "",
-                avatar: "",
+                avatar: prof.user.profileimage || prof.user.avatar || "",
               });
             }
           } catch (e) {
