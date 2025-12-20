@@ -6,6 +6,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Separator } from "./ui/separator";
+import { Textarea } from "./ui/textarea";
 import {
   Select,
   SelectContent,
@@ -29,6 +30,11 @@ import { createOrder, getAddresses } from "../services/api";
 import type { CreateOrderPayload } from "../services/api";
 import { CartItem } from "../types/cart.types";
 import heroTaVan from "../assets/herotavan.jpg";
+import {
+  useVietnamAddress,
+  concatenateAddress,
+} from "../hooks/useVietnamAddress";
+
 
 const RAW_IMAGE_BASE =
   (
@@ -63,10 +69,28 @@ export function CheckoutPage() {
   const [addressSelection, setAddressSelection] = useState<string>("new");
   const [address, setAddress] = useState({
     address_line: "",
-    ward: "",
-    district: "",
-    province: "",
+    provinceCode: "",
+    provinceName: "",
+    districtCode: "",
+    districtName: "",
+    wardCode: "",
+    wardName: "",
+    note: "",
   });
+
+  // Vietnam address hook
+  const {
+    provinces,
+    districts,
+    wards,
+    loadingProvinces,
+    loadingDistricts,
+    loadingWards,
+    loadDistricts,
+    loadWards,
+    resetDistricts,
+    resetWards,
+  } = useVietnamAddress();
   const selectedProductIds = useMemo(() => {
     const ids = (location.state as { selectedProductIds?: unknown })
       ?.selectedProductIds;
@@ -153,6 +177,52 @@ export function CheckoutPage() {
     loadAddresses();
   }, [authChecked, isLoggedIn]);
 
+  // Handle province change
+  const handleProvinceChange = (value: string) => {
+    const province = provinces.find((p) => p.code.toString() === value);
+    if (province) {
+      setAddress({
+        ...address,
+        provinceCode: province.code.toString(),
+        provinceName: province.name,
+        districtCode: "",
+        districtName: "",
+        wardCode: "",
+        wardName: "",
+      });
+      resetDistricts();
+      loadDistricts(province.code);
+    }
+  };
+
+  // Handle district change
+  const handleDistrictChange = (value: string) => {
+    const district = districts.find((d) => d.code.toString() === value);
+    if (district) {
+      setAddress({
+        ...address,
+        districtCode: district.code.toString(),
+        districtName: district.name,
+        wardCode: "",
+        wardName: "",
+      });
+      resetWards();
+      loadWards(district.code);
+    }
+  };
+
+  // Handle ward change
+  const handleWardChange = (value: string) => {
+    const ward = wards.find((w) => w.code.toString() === value);
+    if (ward) {
+      setAddress({
+        ...address,
+        wardCode: ward.code.toString(),
+        wardName: ward.name,
+      });
+    }
+  };
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
@@ -232,16 +302,16 @@ export function CheckoutPage() {
         toast.error("Vui lòng nhập địa chỉ chi tiết");
         return;
       }
-      if (!address.ward.trim()) {
-        toast.error("Vui lòng nhập phường/xã");
+      if (!address.provinceCode) {
+        toast.error("Vui lòng chọn Tỉnh/Thành phố");
         return;
       }
-      if (!address.district.trim()) {
-        toast.error("Vui lòng nhập quận/huyện");
+      if (!address.districtCode) {
+        toast.error("Vui lòng chọn Quận/Huyện");
         return;
       }
-      if (!address.province.trim()) {
-        toast.error("Vui lòng nhập tỉnh/thành phố");
+      if (!address.wardCode) {
+        toast.error("Vui lòng chọn Phường/Xã");
         return;
       }
     } else if (!selectedSavedAddress) {
@@ -268,12 +338,12 @@ export function CheckoutPage() {
         recipient_phone: effectivePhone,
         ...(useNewAddress
           ? {
-              shipping_address: formatAddressDisplay({
-                address_line: address.address_line.trim(),
-                ward: address.ward.trim(),
-                district: address.district.trim(),
-                province: address.province.trim(),
-              }),
+              shipping_address: concatenateAddress(
+                address.address_line.trim(),
+                address.wardName,
+                address.districtName,
+                address.provinceName
+              ),
             }
           : {
               shipping_address_id: Number(selectedSavedAddress.address_id),
@@ -497,11 +567,11 @@ export function CheckoutPage() {
                       <>
                         <div>
                           <Label htmlFor="address_line">
-                            Địa chỉ chi tiết *
+                            Địa chỉ chi tiết (Số nhà, đường) <span className="text-red-500">*</span>
                           </Label>
                           <Input
                             id="address_line"
-                            placeholder="Số nhà, tên đường..."
+                            placeholder="Ví dụ: 123 Nguyễn Văn Linh"
                             value={address.address_line}
                             onChange={(e) =>
                               setAddress({
@@ -514,52 +584,96 @@ export function CheckoutPage() {
                           />
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <Label htmlFor="ward">Phường/Xã *</Label>
-                            <Input
-                              id="ward"
-                              placeholder="Phường 1"
-                              value={address.ward}
-                              onChange={(e) =>
-                                setAddress({ ...address, ward: e.target.value })
-                              }
-                              required
-                              className="mt-2"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="district">Quận/Huyện *</Label>
-                            <Input
-                              id="district"
-                              placeholder="Quận 1"
-                              value={address.district}
-                              onChange={(e) =>
-                                setAddress({
-                                  ...address,
-                                  district: e.target.value,
-                                })
-                              }
-                              required
-                              className="mt-2"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="province">Tỉnh/Thành phố *</Label>
-                            <Input
-                              id="province"
-                              placeholder="TP. Hồ Chí Minh"
-                              value={address.province}
-                              onChange={(e) =>
-                                setAddress({
-                                  ...address,
-                                  province: e.target.value,
-                                })
-                              }
-                              required
-                              className="mt-2"
-                            />
-                          </div>
+                        <div>
+                          <Label htmlFor="province">
+                            Tỉnh / Thành phố <span className="text-red-500">*</span>
+                          </Label>
+                          <Select
+                            value={address.provinceCode}
+                            onValueChange={handleProvinceChange}
+                            disabled={loadingProvinces}
+                          >
+                            <SelectTrigger id="province" className="mt-2">
+                              <SelectValue placeholder="Chọn Tỉnh/Thành phố" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {provinces.map((province) => (
+                                <SelectItem
+                                  key={province.code}
+                                  value={province.code.toString()}
+                                >
+                                  {province.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label htmlFor="district">
+                            Quận / Huyện <span className="text-red-500">*</span>
+                          </Label>
+                          <Select
+                            value={address.districtCode}
+                            onValueChange={handleDistrictChange}
+                            disabled={!address.provinceCode || loadingDistricts}
+                          >
+                            <SelectTrigger id="district" className="mt-2">
+                              <SelectValue placeholder="Chọn Quận/Huyện" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {districts.map((district) => (
+                                <SelectItem
+                                  key={district.code}
+                                  value={district.code.toString()}
+                                >
+                                  {district.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label htmlFor="ward">
+                            Phường / Xã <span className="text-red-500">*</span>
+                          </Label>
+                          <Select
+                            value={address.wardCode}
+                            onValueChange={handleWardChange}
+                            disabled={!address.districtCode || loadingWards}
+                          >
+                            <SelectTrigger id="ward" className="mt-2">
+                              <SelectValue placeholder="Chọn Phường/Xã" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {wards.map((ward) => (
+                                <SelectItem
+                                  key={ward.code}
+                                  value={ward.code.toString()}
+                                >
+                                  {ward.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div>
+                          <Label htmlFor="note">Ghi chú (không bắt buộc)</Label>
+                          <Textarea
+                            id="note"
+                            placeholder="Ví dụ: Giao hàng giờ hành chính"
+                            value={address.note}
+                            onChange={(e) =>
+                              setAddress({
+                                ...address,
+                                note: e.target.value,
+                              })
+                            }
+                            rows={3}
+                            className="mt-2"
+                          />
                         </div>
                       </>
                     )}

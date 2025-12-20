@@ -8,6 +8,14 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Textarea } from "./ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 import { Camera, Mail, Phone, User as UserIcon, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { useApp } from "../contexts/AppContext";
@@ -17,6 +25,10 @@ import {
   deleteAddress,
   updateAddress,
 } from "../services/api";
+import {
+  useVietnamAddress,
+  concatenateAddress,
+} from "../hooks/useVietnamAddress";
 
 export function ProfilePage() {
   const { user, orders, updateProfile, logout } = useApp();
@@ -44,12 +56,30 @@ export function ProfilePage() {
   const [addresses, setAddresses] = useState<any[]>([]);
   const [addrForm, setAddrForm] = useState({
     address_line: "",
-    ward: "",
-    district: "",
-    province: "",
+    provinceCode: "",
+    provinceName: "",
+    districtCode: "",
+    districtName: "",
+    wardCode: "",
+    wardName: "",
+    note: "",
     is_default: 0,
   });
   const [loadingAddresses, setLoadingAddresses] = useState(false);
+
+  // Vietnam address hook
+  const {
+    provinces,
+    districts,
+    wards,
+    loadingProvinces,
+    loadingDistricts,
+    loadingWards,
+    loadDistricts,
+    loadWards,
+    resetDistricts,
+    resetWards,
+  } = useVietnamAddress();
 
   useEffect(() => {
     // load addresses when component mounts
@@ -67,6 +97,52 @@ export function ProfilePage() {
       }
     })();
   }, []);
+
+  // Handle province change
+  const handleProvinceChange = (value: string) => {
+    const province = provinces.find((p) => p.code.toString() === value);
+    if (province) {
+      setAddrForm({
+        ...addrForm,
+        provinceCode: province.code.toString(),
+        provinceName: province.name,
+        districtCode: "",
+        districtName: "",
+        wardCode: "",
+        wardName: "",
+      });
+      resetDistricts();
+      loadDistricts(province.code);
+    }
+  };
+
+  // Handle district change
+  const handleDistrictChange = (value: string) => {
+    const district = districts.find((d) => d.code.toString() === value);
+    if (district) {
+      setAddrForm({
+        ...addrForm,
+        districtCode: district.code.toString(),
+        districtName: district.name,
+        wardCode: "",
+        wardName: "",
+      });
+      resetWards();
+      loadWards(district.code);
+    }
+  };
+
+  // Handle ward change
+  const handleWardChange = (value: string) => {
+    const ward = wards.find((w) => w.code.toString() === value);
+    if (ward) {
+      setAddrForm({
+        ...addrForm,
+        wardCode: ward.code.toString(),
+        wardName: ward.name,
+      });
+    }
+  };
 
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -406,21 +482,65 @@ export function ProfilePage() {
                       <form
                         onSubmit={async (e) => {
                           e.preventDefault();
+                          
+                          // Validation
+                          if (!addrForm.address_line.trim()) {
+                            toast.error("Vui lòng nhập địa chỉ chi tiết");
+                            return;
+                          }
+                          if (!addrForm.provinceCode) {
+                            toast.error("Vui lòng chọn Tỉnh/Thành phố");
+                            return;
+                          }
+                          if (!addrForm.districtCode) {
+                            toast.error("Vui lòng chọn Quận/Huyện");
+                            return;
+                          }
+                          if (!addrForm.wardCode) {
+                            toast.error("Vui lòng chọn Phường/Xã");
+                            return;
+                          }
+                          
                           try {
-                            const created = await createAddress(addrForm);
+                            // Concatenate full address
+                            const fullAddress = concatenateAddress(
+                              addrForm.address_line,
+                              addrForm.wardName,
+                              addrForm.districtName,
+                              addrForm.provinceName
+                            );
+                            
+                            // Prepare payload for backend (keeping old structure)
+                            const payload = {
+                              address_line: addrForm.address_line,
+                              ward: addrForm.wardName,
+                              district: addrForm.districtName,
+                              province: addrForm.provinceName,
+                              is_default: addrForm.is_default,
+                            };
+                            
+                            await createAddress(payload);
                             toast.success("Đã thêm địa chỉ");
-                            // refresh list
+                            
+                            // Refresh list
                             const res = await getAddresses();
                             setAddresses(
                               Array.isArray(res) ? res : res.data || []
                             );
+                            
+                            // Reset form
                             setAddrForm({
                               address_line: "",
-                              ward: "",
-                              district: "",
-                              province: "",
+                              provinceCode: "",
+                              provinceName: "",
+                              districtCode: "",
+                              districtName: "",
+                              wardCode: "",
+                              wardName: "",
+                              note: "",
                               is_default: 0,
                             });
+                            resetDistricts();
                           } catch (err: any) {
                             console.error(err);
                             toast.error(
@@ -431,11 +551,15 @@ export function ProfilePage() {
                           }
                         }}
                       >
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div className="space-y-4">
+                          {/* Address Line */}
                           <div>
-                            <Label htmlFor="address_line">Địa chỉ</Label>
+                            <Label htmlFor="address_line">
+                              Địa chỉ chi tiết (Số nhà, đường) <span className="text-red-500">*</span>
+                            </Label>
                             <Input
                               id="address_line"
+                              placeholder="Ví dụ: 123 Nguyễn Văn Linh"
                               value={addrForm.address_line}
                               onChange={(e) =>
                                 setAddrForm({
@@ -445,62 +569,135 @@ export function ProfilePage() {
                               }
                             />
                           </div>
+
+                          {/* Province */}
                           <div>
-                            <Label htmlFor="ward">Phường / Xã</Label>
-                            <Input
-                              id="ward"
-                              value={addrForm.ward}
+                            <Label htmlFor="province">
+                              Tỉnh / Thành phố <span className="text-red-500">*</span>
+                            </Label>
+                            <Select
+                              value={addrForm.provinceCode}
+                              onValueChange={handleProvinceChange}
+                              disabled={loadingProvinces}
+                            >
+                              <SelectTrigger id="province">
+                                <SelectValue placeholder="Chọn Tỉnh/Thành phố" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {provinces.map((province) => (
+                                  <SelectItem
+                                    key={province.code}
+                                    value={province.code.toString()}
+                                  >
+                                    {province.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* District */}
+                          <div>
+                            <Label htmlFor="district">
+                              Quận / Huyện <span className="text-red-500">*</span>
+                            </Label>
+                            <Select
+                              value={addrForm.districtCode}
+                              onValueChange={handleDistrictChange}
+                              disabled={
+                                !addrForm.provinceCode || loadingDistricts
+                              }
+                            >
+                              <SelectTrigger id="district">
+                                <SelectValue placeholder="Chọn Quận/Huyện" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {districts.map((district) => (
+                                  <SelectItem
+                                    key={district.code}
+                                    value={district.code.toString()}
+                                  >
+                                    {district.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Ward */}
+                          <div>
+                            <Label htmlFor="ward">
+                              Phường / Xã <span className="text-red-500">*</span>
+                            </Label>
+                            <Select
+                              value={addrForm.wardCode}
+                              onValueChange={handleWardChange}
+                              disabled={!addrForm.districtCode || loadingWards}
+                            >
+                              <SelectTrigger id="ward">
+                                <SelectValue placeholder="Chọn Phường/Xã" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {wards.map((ward) => (
+                                  <SelectItem
+                                    key={ward.code}
+                                    value={ward.code.toString()}
+                                  >
+                                    {ward.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Note */}
+                          <div>
+                            <Label htmlFor="note">Ghi chú (không bắt buộc)</Label>
+                            <Textarea
+                              id="note"
+                              placeholder="Ví dụ: Giao hàng giờ hành chính"
+                              value={addrForm.note}
                               onChange={(e) =>
                                 setAddrForm({
                                   ...addrForm,
-                                  ward: e.target.value,
+                                  note: e.target.value,
                                 })
                               }
+                              rows={3}
                             />
                           </div>
-                          <div>
-                            <Label htmlFor="district">Quận / Huyện</Label>
-                            <Input
-                              id="district"
-                              value={addrForm.district}
+
+                          {/* Is Default Checkbox */}
+                          <div className="flex items-center gap-3">
+                            <input
+                              id="is_default"
+                              type="checkbox"
+                              checked={addrForm.is_default === 1}
                               onChange={(e) =>
                                 setAddrForm({
                                   ...addrForm,
-                                  district: e.target.value,
+                                  is_default: e.target.checked ? 1 : 0,
                                 })
                               }
                             />
+                            <Label htmlFor="is_default">Đặt làm mặc định</Label>
                           </div>
-                          <div>
-                            <Label htmlFor="province">Tỉnh / Thành</Label>
-                            <Input
-                              id="province"
-                              value={addrForm.province}
-                              onChange={(e) =>
-                                setAddrForm({
-                                  ...addrForm,
-                                  province: e.target.value,
-                                })
+
+                          {/* Submit Button */}
+                          <div className="pt-2">
+                            <Button
+                              type="submit"
+                              className="bg-red-700 hover:bg-red-800"
+                              disabled={
+                                !addrForm.address_line.trim() ||
+                                !addrForm.provinceCode ||
+                                !addrForm.districtCode ||
+                                !addrForm.wardCode
                               }
-                            />
+                            >
+                              Thêm địa chỉ
+                            </Button>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-3 mt-3">
-                          <input
-                            id="is_default"
-                            type="checkbox"
-                            checked={addrForm.is_default === 1}
-                            onChange={(e) =>
-                              setAddrForm({
-                                ...addrForm,
-                                is_default: e.target.checked ? 1 : 0,
-                              })
-                            }
-                          />
-                          <Label htmlFor="is_default">Đặt làm mặc định</Label>
-                        </div>
-                        <div className="pt-4">
-                          <Button type="submit">Thêm địa chỉ</Button>
                         </div>
                       </form>
 
